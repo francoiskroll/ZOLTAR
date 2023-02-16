@@ -14,14 +14,23 @@ library(shiny)
 
 
 
+# functions ---------------------------------------------------------------
+
+source('legacyFingerprint.R')
+
+
+
 # settings ----------------------------------------------------------------
 
 # options(shiny.maxRequestSize = 30*1024^2) # maximum upload set to 30 Mb
 
 
+# ui ----------------------------------------------------------------------
+
+
 ui <- fluidPage(
   
-  # App title ----
+  ### app title
   titlePanel('Predictive pharmacology'),
   
   # Sidebar layout with input and output definitions ----
@@ -37,42 +46,60 @@ ui <- fluidPage(
       
     ),
     
-    # Main panel for displaying outputs ----
+    # # Main panel for displaying outputs ----
+    # mainPanel(
+    #   
+    #   # Output: Data file ----
+    #   tableOutput("contents")
+    #   
+    # ),
+    
     mainPanel(
-      
-      # Output: Data file ----
-      tableOutput("contents")
-      
+      tabsetPanel(
+        tabPanel('Fingerprint', tableOutput('contents')),
+        tabPanel('Ranked drugs')
+      )
     )
     
   )
 )
+
+
+# server ------------------------------------------------------------------
+
 
 # Define server logic to read selected file ----
 server <- function(input, output) {
   
   output$contents <- renderTable({
     
-    # input$file1 will be NULL initially. After the user selects
-    # and uploads a file, head of that data file by default,
-    # or all rows if selected, will be shown.
+    # input$mat is NULL initially
     
-    req(input$file1)
+    req(input$mat) # check that mat file is available
     
-    df <- read.csv(input$file1$datapath,
-                   header = input$header,
-                   sep = input$sep,
-                   quote = input$quote)
+    # df <- read.csv(input$file1$datapath,
+    #                header = input$header,
+    #                sep = input$sep,
+    #                quote = input$quote)
     
-    if(input$disp == "head") {
-      return(head(df))
-    }
-    else {
-      return(df)
-    }
+    df <- R.matlab::readMat(input$mat$datapath)$geno
+    
+    fgp <- legacyFingerprint(
+      matPath=input$mat$datapath,
+      conGrp='scr',
+      treGrp='sorl1',
+      nights=c(2,3),
+      days=c(2,3)
+    )
+    
+    return(fgp) # this becomes CONTENTS in ui
     
   })
   
 }
-# Run the app ----
+
+
+
+# run the app -------------------------------------------------------------
+
 shinyApp(ui, server)
