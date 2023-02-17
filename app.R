@@ -29,7 +29,7 @@ source('drawEnrich_v5.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 1000
+ndraws <- 10
 alphaThr <- 0.05
 
 # options(shiny.maxRequestSize = 30*1024^2) # maximum upload set to 30 Mb
@@ -39,6 +39,15 @@ alphaThr <- 0.05
 
 
 ui <- fluidPage(
+  
+  # theme=bslib::bs_theme(bootswatch='sandstone'),
+  #theme=bslib::bs_theme(bootswatch='united'), # maybe the font is too childish
+  #theme=bslib::bs_theme(bootswatch='simplex'),
+   
+  # can also set theme manually
+  # theme=bslib::bs_theme(
+  #   base_font='Rubik'
+  # ),
   
   ### app title
   titlePanel('Predictive pharmacology'),
@@ -83,6 +92,7 @@ ui <- fluidPage(
         
         tabPanel('Drugs ranked',
                  p('Drugs are ranked by decreasing cosine.'),
+                 downloadButton('ind_dl', 'download'),
                  h3('Top 20'),
                  tableOutput('topdr'), # topdr is for top X drugs
                  h3('Bottom 20'),
@@ -257,6 +267,15 @@ server <- function(input, output, session) {
                  output$ind <- renderTable({ # indications statistics report
                    return(ind) # this becomes 'ind' in ui
                  })
+                 
+                 output$ind_dl <- downloadHandler( # download indications
+                   filename=function() {
+                     'indications.csv'
+                   },
+                   content=function(file) {
+                     vroom::vroom_write(ind, file, delim=',') # delim = ',' so writes CSV
+                   }
+                 )
                  
                  ### TTD targets ###
                  output$tar <- renderTable({ # TTD targets statistics report
