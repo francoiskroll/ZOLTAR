@@ -133,21 +133,27 @@ server <- function(input, output, session) {
                  
                  
                  ### rank drugs vs fingerprint ###
-                 vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
-                                    dbPath='drugDb.csv', 
-                                    metric='cosine')
+                 withProgress(message='Ranking drugs vs fingerprint', value=0.3, {
+                   vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
+                                      dbPath='drugDb.csv', 
+                                      metric='cosine')
+                   incProgress(1.0)
+                 })
                  
                  
                  ### calculate enrichment TTD indications ###
-                 ind <- drugEnrichment(vdbr=vdbr,
-                                       namesPath='compounds.csv',
-                                       annotationPath='TTDindications.csv',
-                                       annotation='indications',
-                                       whichRank='rankeq',
-                                       minNex=3,
-                                       ndraws=ndraws,
-                                       alphaThr=alphaThr,
-                                       statsExport=NA)
+                 withProgress(message='Calculating indications enrichment', value=0.3, {
+                   ind <- drugEnrichment(vdbr=vdbr,
+                                         namesPath='compounds.csv',
+                                         annotationPath='TTDindications.csv',
+                                         annotation='indications',
+                                         whichRank='rankeq',
+                                         minNex=3,
+                                         ndraws=ndraws,
+                                         alphaThr=alphaThr,
+                                         statsExport=NA)
+                   incProgress(1.0)
+                 })
                  
                  
                  ### fingerprint table ###
