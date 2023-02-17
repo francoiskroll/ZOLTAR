@@ -12,6 +12,8 @@
 # francois@kroll.be
 ###################################################
 
+# up to v3 was called sampleEnrich.R but I did not like the name anymore
+
 ### v2
 # no more splitting the ranked list in positive and negative cosines
 # this approach could miss a situation where e.g. there are 100 Dopamine D2 receptor drugs; they are ALL in negative cosines but not in extreme ranks
@@ -23,6 +25,12 @@
 # as soon as 500 draws have a more extreme sum of ranks, we know the final p-value will be > 0.05
 # so we could keep a count and report the minimum possible p-value as soon as there is no point trying further
 
+### v4
+# common function swapDrugsforAnnotations instead of unique function for each annotation
+
+### v5
+# some edits to make it work within Shiny app
+
 
 # packages ----------------------------------------------------------------
 
@@ -32,6 +40,109 @@ library(openxlsx)
 library(data.table)
 library(stringr)
 
+
+
+
+
+# function testAllAnnotations(...) ----------------------------------------
+
+testAllAnnotations <- function(vdbr,
+                               namesPath=NA,
+                               annotationDir,
+                               whichRank='rank0',
+                               minScore=NA,
+                               minNex,
+                               ndraws,
+                               alphaThr=0.05,
+                               maxPval=NA,
+                               statsDir,
+                               exportPrefix) {
+  # 1-- indications
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'TTDindications.csv'),
+                 annotation='indications',
+                 whichRank=whichRank,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 statsExport=paste0(statsDir, exportPrefix, '_indications.csv'))
+  
+  # 2-- TTD targets
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'TTDtargets.csv'),
+                 annotation='TTDtargets',
+                 whichRank=whichRank,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 statsExport=paste0(statsDir, exportPrefix, '_TTDtargets.csv'))
+  
+  # 3-- KEGG pathways
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'TTDkegg.csv'),
+                 annotation='KEGG',
+                 whichRank=whichRank,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 statsExport=paste0(statsDir, exportPrefix, '_KEGG.csv'))
+  
+  # 4-- zebrafish STITCH targets
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'zebrafishSTITCH.csv'),
+                 annotation='zebrafishSTITCH',
+                 whichRank=whichRank,
+                 minScore=minScore,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 maxPval=maxPval,
+                 statsExport=paste0(statsDir, exportPrefix, '_zSTITCH.csv'))
+  
+  # 5-- human STITCH targets
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'humanSTITCH.csv'),
+                 annotation='humanSTITCH',
+                 whichRank=whichRank,
+                 minScore=minScore,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 maxPval=maxPval,
+                 statsExport=paste0(statsDir, exportPrefix, '_hSTITCH.csv'))
+  
+  # 6-- zebrafish GO
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'zebrafishGO.csv'),
+                 annotation='zebrafishGO',
+                 whichRank=whichRank,
+                 minScore=minScore,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 maxPval=maxPval,
+                 statsExport=paste0(statsDir, exportPrefix, '_zGO.csv'))
+  
+  # 7-- human GO
+  drugEnrichment(vdbr=vdbr,
+                 namesPath=namesPath,
+                 annotationPath=paste0(annotationDir, 'humanGO.csv'),
+                 annotation='humanGO',
+                 whichRank=whichRank,
+                 minScore=minScore,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 maxPval=maxPval,
+                 statsExport=paste0(statsDir, exportPrefix, '_hGO.csv'))
+  
+}
 
 
 # function drugEnrichment(...) --------------------------------------------
@@ -48,17 +159,25 @@ drugEnrichment <- function(vdbr,
                            minNex,
                            ndraws,
                            alphaThr=0.05,
-                           maxPval=NA) {
+                           maxPval=NA,
+                           statsExport=NA) {
   
   
   ### swap each drug for its annotations
-  
   if(annotation=='indications') {
     annotationCol <- 'indication'
-  } else if (annotation=='zebrafishSTITCH') {
+  } else if(annotation=='TTDtargets') {
+    annotationCol <- 'TARGETID'
+  } else if(annotation=='KEGG') {
+    annotationCol <- 'keggid'
+  } else if(annotation=='zebrafishSTITCH') {
     annotationCol <- 'ENSP'
-  } else if (annotation=='humanSTITCH') {
+  } else if(annotation=='humanSTITCH') {
     annotationCol <- 'ENSP'
+  } else if(annotation=='zebrafishGO') {
+    annotationCol <- 'go_id'
+  } else if(annotation=='humanGO') {
+    annotationCol <- 'go_id'
   }
   
   radf <- swapDrugsforAnnotations(vdbr=vdbr,
@@ -135,24 +254,78 @@ drugEnrichment <- function(vdbr,
   
   
   ## add back some information about the annotations
-  if(annotation=='zebrafishSTITCH') {
+  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH')) {
     # import zebrafish STITCH
-    zpro <- fread(here('annotateDrugDb/zebrafishSTITCH.csv'))
+    sti <- fread(here(annotationPath), na.strings='')
     # keep only the protein annotations
-    # only need one example for each protein (cf. duplicated below)
-    zpro <- zpro[!duplicated(zpro$ENSP), c('species', 'ENSP', 'ENSG', 'gene_name', 'gene_symbol', 'gene_biotype')]
+    # we only need one example for each protein (cf. duplicated below)
+    sti <- sti[!duplicated(sti$ENSP), c('species', 'ENSP', 'ENSG', 'gene_name', 'gene_symbol', 'gene_biotype')]
     # change column name so we can merge with statistics results
-    colnames(zpro)[which(colnames(zpro)=='ENSP')] <- 'annotation'
+    colnames(sti)[which(colnames(sti)==annotationCol)] <- 'annotation'
     # merge
-    # we want to keep all rows in anr (and not necessarily take all rows of zpro)
-    anr <- right_join(zpro, anr, by='annotation')
+    # we want to keep all rows in anr (and not necessarily take all rows of sti)
+    nrowbefore <- nrow(anr)
+    anr <- right_join(sti, anr, by='annotation')
+    nrowafter <- nrow(anr)
+    if(nrowbefore!=nrowafter) stop('\t \t \t \t >>> Error drugEnrichment: unexpected result when adding information to the statistics report \n')
     
+  } else if(annotation=='TTDtargets') {
+    # import TTD targets
+    tar <- read.csv(annotationPath)
+    # keep only the protein annotations
+    # we only need one example for each protein/target (cf. duplicated below)
+    tar <- tar[!duplicated(tar$TARGETID), c('TARGETID', 'UNIPROID', 'TARGNAME', 'GENENAME', 'TARGTYPE', 'BIOCLASS')]
+    # change column name so we can merge with statistics results
+    colnames(tar)[which(colnames(tar)==annotationCol)] <- 'annotation'
+    # merge
+    # we want to keep all rows in anr (and not necessarily take all rows of tar)
+    nrowbefore <- nrow(anr)
+    anr <- right_join(tar, anr, by='annotation')
+    nrowafter <- nrow(anr)
+    if(nrowbefore!=nrowafter) stop('\t \t \t \t >>> Error drugEnrichment: unexpected result when adding information to the statistics report \n')
+    
+  } else if(annotation=='KEGG') {
+    # import TTD targets
+    keg <- read.csv(annotationPath)
+    # keep only the KEGG names
+    # we only need one example for each KEGG ID (cf. duplicated below)
+    keg <- keg[!duplicated(keg$keggid), c('keggid', 'keggname')] # we only keep keggid and keggname, all we need to do is add the names here
+    # change column name so we can merge with statistics results
+    colnames(keg)[which(colnames(keg)==annotationCol)] <- 'annotation'
+    # merge
+    # we want to keep all rows in anr (and not necessarily take all rows of tar)
+    nrowbefore <- nrow(anr)
+    anr <- right_join(keg, anr, by='annotation')
+    nrowafter <- nrow(anr)
+    if(nrowbefore!=nrowafter) stop('\t \t \t \t >>> Error drugEnrichment: unexpected result when adding information to the statistics report \n')
+  } else if(annotation %in% c('zebrafishGO', 'humanGO')) {
+    # import GO annotations
+    go <- fread(here(annotationPath), na.strings='')
+    # keep go_term and go_linkagetype
+    # we only need one example for each GO term (cf. duplicated below)
+    go <- go[!duplicated(go$go_id), c('go_id', 'go_term', 'go_linkagetype')]
+    # change column name so we can merge with statistics results
+    colnames(go)[which(colnames(go)==annotationCol)] <- 'annotation'
+    # merge
+    # we want to keep all rows in anr (and not necessarily take all rows of sti)
+    nrowbefore <- nrow(anr)
+    anr <- right_join(go, anr, by='annotation')
+    nrowafter <- nrow(anr)
+    if(nrowbefore!=nrowafter) stop('\t \t \t \t >>> Error drugEnrichment: unexpected result when adding information to the statistics report \n')
   }
   
   
   ## order with lowest pval on top
   anr <- anr[order(anr$pval),]
   
+  
+  ## write the statistics report to drive
+  if(!is.na(statsExport)) {
+    write.csv(anr, statsExport, row.names=FALSE)
+  }
+  
+  
+  ## also return it
   return(anr)
   
 }
@@ -302,46 +475,30 @@ swapDrugsforAnnotations <- function(vdbr,
                                     minScore=NA) {
   
   ### check we can deal with this annotation
-  if(! annotation %in% c('indications', 'zebrafishSTITCH')) stop('\t \t \t \t >>> Error drugEnrichment: does not currently support this annotation.
-         Possible annotations are: "indications", "targets", "targetBioclass", "keggPathways", "zebrafishSTITCH"')
+  if(! annotation %in% c('indications', 'TTDtargets', 'KEGG', 'zebrafishSTITCH', 'humanSTITCH', 'zebrafishGO', 'humanGO'))
+    stop('\t \t \t \t >>> Error drugEnrichment: does not currently support this annotation.
+         Possible annotations are: "indications", "TTDtargets", "KEGG", "zebrafishSTITCH", "humanSTITCH", "zebrafishGO", "humanGO"')
   
   ### import names
-  dnms <- read.xlsx(namesPath, sheet='names')
+  dnms <- read.csv(namesPath)
   
   
   ### import annotations
   # method depends slightly on the annotation
-  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH')) {
+  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH', 'zebrafishGO', 'humanGO')) {
     ano <- fread(annotationPath, na.strings='')
-  } else if (annotation=='indications') {
-    ano <- read.xlsx(annotationPath, sheet='indications')
+  } else if (annotation %in% c('indications', 'TTDtargets', 'KEGG')) {
+    ano <- read.csv(annotationPath)
   }
   
   # data.table format is causing some trouble later
   ano <- as.data.frame(ano)
   
   # if we are looking at STITCH targets and minScore is given, trim some interactions
-  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH') & !is.na(minScore)) {
+  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH', 'zebrafishGO', 'humanGO') & !is.na(minScore)) {
     cat('\t \t \t \t >>> minScore threshold =', minScore, ': keeping', nrow(subset(ano, score >= minScore)), 'interactions out of', nrow(ano), '\n')
     ano <- subset(ano, score >= minScore)
-    cat('\t \t \t \t >>>' , length(unique(ano[, annotationCol])),'unique proteins left \n')
-  }
-  
-  
-  ### rank annotations
-  # add names to vdbr
-  # we want to keep all rows in vdbr, i.e. the ranked list of compounds
-  # but not necessarily all rows in names
-  cdb <- left_join(vdbr, dnms, by='name')
-  
-  # drugs are already ranked by rankDrugDb
-  # make a simple db with CIDs, cos, rank columns
-  # (i.e. delete the fingerprints)
-  cdb <- cdb[, c('cid', 'cos', 'rank', 'rank0', 'ranks', 'rankeq')]
-  # remove NA CID, if any
-  nacid <- which(is.na(cdb$cid))
-  if(length(nacid)>0) {
-    cdb <- cdb[-nacid,]
+    cat('\t \t \t \t >>>' , length(unique(ano[, annotationCol])),'unique proteins or GO terms left \n')
   }
   
   # now to order annotations from top correlating to worst
@@ -354,10 +511,10 @@ swapDrugsforAnnotations <- function(vdbr,
   # I think this is more accurate, because e.g. aspirin's targets could have been rank 56, 57, 58, 59, 60
   # while the difference between rank 56 and rank 60 is meaningless (they all have the same cos, so are at the same distance from 0)
   # graphically, it is like these 5 targets should all be on top of each other at the same distance from 0
-  stl <- lapply(1:nrow(cdb), function(cr) {
+  stl <- lapply(1:nrow(vdbr), function(cr) {
     
     # indices with annotations for this drug (look by CID)
-    it <- which(ano$cid==cdb[cr, 'cid'])
+    it <- which(ano$cid==vdbr[cr, 'cid'])
     
     # if no targets
     if (length(it)==0) {
@@ -367,11 +524,11 @@ swapDrugsforAnnotations <- function(vdbr,
     } else {
       # return the rows from STITCH
       return ( cbind(ano[it,],
-                     cos=cdb[cr, 'cos'],
-                     rank=cdb[cr, 'rank'],
-                     rank0=cdb[cr, 'rank0'],
-                     ranks=cdb[cr, 'ranks'],
-                     rankeq=cdb[cr, 'rankeq']))
+                     cos=vdbr[cr, 'cos'],
+                     rank=vdbr[cr, 'rank'],
+                     rank0=vdbr[cr, 'rank0'],
+                     ranks=vdbr[cr, 'ranks'],
+                     rankeq=vdbr[cr, 'rankeq']))
     }
   })
   stl <- rbindlist(stl)
@@ -553,242 +710,6 @@ sampleEnrich <- function(radf,
   
 }
 
-
-
-# function rankTargets(...) -----------------------------------------------
-
-# small function to rank targets ready to calculate enrichment
-# vdb is drugDb ranked
-# path is path to drugAnnotations.xlsx
-
-rankTargets <- function(vdb,
-                        annotationPath) {
-  
-  
-  ### import drugAnnotations
-  dnms <- read.xlsx(annotationPath, sheet='names')
-  tar <- read.xlsx(annotationPath, sheet='targets')
-  
-  
-  ### rank targets
-  # add names to vdb
-  # we want to keep all rows in vdb
-  vdba <- left_join(vdb, dnms, by='name')
-  
-  # drugs are already ranked by rankDrugDb
-  # make a simple db with TIDs and cos
-  cdb <- vdba[, c('tid', 'cos')]
-  # remove any NA TID
-  cdb <- cdb[-which(is.na(cdb$tid)),]
-  
-  # in targets, there are duplicates
-  # duplicated drugs is expected, but not same drug/same indication
-  # I do not know why, should check carefully annotateDrugDb.R later
-  # here, remove duplicates, i.e. same drug & target twice
-  tar <- tar[- which(duplicated(paste(tar$tid, tar$TARGETID, tar$BIOCLASS))),]
-  
-  # now to order targets from top correlating to worst
-  # cdb should basically be used as a database
-  # for every tid, we return all targets and repeat the cosine
-  # if that tid occurs again, we return the same targets again
-  tal <- sapply(1:nrow(cdb), function(cr) {
-    
-    # indices with indications for this drug (look by TID)
-    it <- which(tar$tid==cdb[cr, 'tid'])
-    
-    # if no indication
-    if (length(it)==0) {
-      NULL
-      
-      # if some indications
-    } else {
-      # return a small dataframe with indications and cos
-      return ( cbind(tar[it,], cos=cdb[cr, 'cos']) )
-    }
-  })
-  tal <- rbindlist(tal)
-  
-  # say one drug has 3 replicates, so 3 cos values
-  # above repeats the 3 indications, each with one of the 3 cos value
-  # which is what we want
-  # alternative would be to average the 3 cos but I think nicer to keep all the data
-  
-  # ! we need to rank again as we added rows
-  tal <- tal[rev(order(tal$cos)),]
-  # remember, one drug/target can be at multiple positions
-  # as each replicate of this drug has its own cos
-  
-  tal <- tal %>%
-    add_column(rank=1:nrow(tal), .before=1)
-  
-  return(as.data.frame(tal))
-  
-}
-
-
-
-# function rankKegg(...) --------------------------------------------------
-
-rankKegg <- function(vdb,
-                     annotationPath) {
-  
-  
-  ### import drugAnnotations
-  dnms <- read.xlsx(annotationPath, sheet='names')
-  tar <- read.xlsx(annotationPath, sheet='targets')
-  keg <- read.xlsx(annotationPath, sheet='KEGGpathways')
-  
-  
-  ### rank targets
-  # KEGG pathways are associated with targets, not compounds
-  # so we must first rank the targets, then we will use the order of the targets to rank the pathways
-  tal <- rankTargets(vdb=vdb,
-                     annotationPath=annotationPath)
-  
-  
-  
-  ### rank KEGG pathways
-  # to order pathways from top correlating to worst,
-  # we essentially use KEGG pathways as a database
-  # for every target, we return all pathways and repeat the cosines
-  # if that target occurs again, we return the same pathways again
-  kel <- sapply(1:nrow(tal), function(ta) {
-    
-    # which target ID do we have?
-    taid <- tal[ta, 'TARGETID']
-    
-    # indices with pathways for this target (look by TID)
-    ki <- which(keg$TARGETID==taid)
-    
-    # if no indication
-    if (length(ki)==0) {
-      NULL
-      
-      # if some indications
-    } else {
-      # return a small dataframe with indications and cos
-      return ( cbind(keg[ki,], cos=tal[ta, 'cos']) )
-    }
-  })
-  kel <- rbindlist(kel)
-  
-  # say one drug has 3 replicates, so 3 cos values
-  # above repeats the 3 indications, each with one of the 3 cos value
-  # which is what we want
-  # alternative would be to average the 3 cos but I think nicer to keep all the data
-  
-  # ! we need to rank again as we added rows
-  # remember, cos ties each pathway back to the original compound/experiment
-  # e.g. aspirin has cos = 0.8, binds to kinase X which affects estrogen signalling
-  # then estrogen signalling gets assigned cos = 0.8
-  # say morphin has cos = 0.3; binds to kinase Y which also affects estrogen signalling
-  # then there will be another row with estrogen signalling and cos = 0.3
-  kel <- kel[rev(order(kel$cos)),]
-  # remember, one drug/target can be at multiple positions
-  # as each replicate of this drug has its own cos
-  
-  kel <- kel %>%
-    add_column(rank=1:nrow(kel), .before=1)
-  
-  return(as.data.frame(kel))
-  
-}
-
-
-
-
-# function rankSTITCHzebrafish(...) ---------------------------------------
-
-# example
-# namesPath <- here('annotateDrugDb', 'drugAnnotations_TTD.xlsx')
-# annotationPath <- here('annotateDrugDb', 'zebrafishSTITCH.csv')
-# minScore <- 700
-
-rankSTITCHzebrafish <- function(vdbr,
-                                namesPath,
-                                annotationPath,
-                                minScore) {
-  
-  ### import names
-  dnms <- read.xlsx(namesPath, sheet='names')
-  
-  
-  ### import zebrafish STITCH
-  zsti <- fread(annotationPath, na.strings='')
-  
-  # if minScore is given, trim some interactions
-  if(!is.na(minScore)) {
-    cat('\t \t \t \t >>> minScore threshold =', minScore, ': keeping', nrow(subset(zsti, score >= minScore)), 'interactions out of', nrow(zsti), '\n')
-    zsti <- subset(zsti, score >= minScore)
-    cat('\t \t \t \t >>>' , length(unique(zsti$ENSP)),'unique proteins left \n')
-  }
-  
-  
-  ### rank STITCH
-  # add names to vdbr
-  # we want to keep all rows in vdbr
-  cdb <- left_join(vdbr, dnms, by='name')
-  
-  # drugs are already ranked by rankDrugDb
-  # make a simple db with CIDs, cos, rank columns
-  # (i.e. delete the fingerprints)
-  cdb <- cdb[, c('cid', 'cos', 'rank', 'rank0', 'ranks', 'rankeq')]
-  # remove NA CID, if any
-  nacid <- which(is.na(cdb$cid))
-  if(length(nacid)>0) {
-    cdb <- cdb[-nacid,]
-  }
-  
-  # now to order STITCH from top correlating to worst
-  # cdb should basically be used as entries to database zsti
-  # for every CID, we return all STITCH targets and repeat the cosine
-  # if that CID occurs again, we return the same STITCH targets again
-  # 30/01/2023: we now assign same rank to every target of a given compound
-  # e.g. aspirin is rank 10 and has 5 targets, each of these targets gets rank 10
-  # previously, we were assigning ranks on the targets
-  # I think this is less inaccurate, because e.g. aspirin's targets could have been rank 56, 57, 58, 59, 60
-  # while the difference between rank 56 and rank 60 is meaningless (they all have the same cos, so are at the same distance from 0)
-  # graphically, it is like these 5 targets should all be on top of each other at the same distance from 0
-  stl <- lapply(1:nrow(cdb), function(cr) {
-    
-    # indices with targets for this drug (look by CID)
-    it <- which(zsti$cid==cdb[cr, 'cid'])
-    
-    # if no targets
-    if (length(it)==0) {
-      NULL
-      
-      # if some targets
-    } else {
-      # return the rows from STITCH
-      return ( cbind(zsti[it,],
-                     cos=cdb[cr, 'cos'],
-                     rank=cdb[cr, 'rank'],
-                     rank0=cdb[cr, 'rank0'],
-                     ranks=cdb[cr, 'ranks'],
-                     rankeq=cdb[cr, 'rankeq']))
-    }
-  })
-  stl <- rbindlist(stl)
-  
-  # about replicates (same drug/different experiment):
-  # say one drug has 3 replicates, so 3 cos values
-  # and this drug has 15 STITCH targets
-  # above will record all 15 STITCH targets for replicate1 / those will be assign all same cos & all same rank, from replicate1
-  # then will record all 15 STITCH targets again for replicate2 / those will be assign all same cos & all same rank, from replicate2
-  # etc.
-  # which I think is what we want
-  # alternative would be to average the 3 cos but I think better to keep all the data
-
-  # as we added rows, we can order again
-  # (but should be useless as still ordered by cos)
-  stl <- stl[rev(order(stl$cos)),]
-  # remember, one drug x target interaction can be at multiple positions
-  # as each replicate of this drug has its own cos
-  
-  return(as.data.frame(stl))
-  
-}
 
 
 

@@ -20,7 +20,7 @@ library(ggplot2)
 
 source('legacyFingerprint.R')
 source('gglegacyFingerprint.R')
-source('sampleEnrich_v3.R')
+source('drawEnrich_v5.R')
 
 
 
@@ -28,6 +28,9 @@ source('sampleEnrich_v3.R')
 
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
+
+ndraws <- 1000
+alphaThr <- 0.05
 
 # options(shiny.maxRequestSize = 30*1024^2) # maximum upload set to 30 Mb
 
@@ -76,10 +79,15 @@ ui <- fluidPage(
                  plotOutput('ggfgp')),
         
         tabPanel('Drugs ranked',
+                 p('Drugs are ranked by decreasing cosine.'),
                  h3('Top 20'),
                  tableOutput('topdr'), # topdr is for top X drugs
                  h3('Bottom 20'),
-                 tableOutput('botdr')) # botdr is for bottom X drugs
+                 tableOutput('botdr')), # botdr is for bottom X drugs
+        
+        tabPanel('Indications',
+                 p('Source: Therapeutic Target Database'),
+                 tableOutput('ind'))
       )
     )
     
@@ -130,6 +138,18 @@ server <- function(input, output, session) {
                                     metric='cosine')
                  
                  
+                 ### calculate enrichment TTD indications ###
+                 ind <- drugEnrichment(vdbr=vdbr,
+                                       namesPath='compounds.csv',
+                                       annotationPath='TTDindications.csv',
+                                       annotation='indications',
+                                       whichRank='rankeq',
+                                       minNex=3,
+                                       ndraws=ndraws,
+                                       alphaThr=alphaThr,
+                                       statsExport=NA)
+                 
+                 
                  ### fingerprint table ###
                  output$fgp <- renderTable({
                    return(fgp) # this becomes 'fgp' in ui
@@ -169,6 +189,12 @@ server <- function(input, output, session) {
                  ### bottom X drugs ###
                  output$botdr <- renderTable({ # botdr is for bottom X drugs
                    return(vdbr[(nrow(vdbr)-19):nrow(vdbr),]) # this becomes 'topdr' in ui
+                 })
+                 
+                 
+                 ### TTD indications ###
+                 output$ind <- renderTable({ # indications statistics report
+                   return(ind) # this becomes 'ind' in ui
                  })
   })
   
