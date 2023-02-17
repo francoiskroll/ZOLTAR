@@ -42,6 +42,9 @@ ui <- fluidPage(
   
   ### app title
   titlePanel('Predictive pharmacology'),
+  # subtitle
+  p(em('From behavioural fingerprint to drugs and pathways'), style='color:grey'),
+  # h4('Francois Kroll & Jason Rihel'),
   
   ### sidebar layout = inputs on left, outputs on right
   sidebarLayout(
@@ -87,7 +90,23 @@ ui <- fluidPage(
         
         tabPanel('Indications',
                  p('Source: Therapeutic Target Database'),
-                 tableOutput('ind'))
+                 tableOutput('ind')) ,
+        
+        tabPanel('Targets',
+                 p('Source: Therapeutic Target Database'),
+                 tableOutput('tar')) ,
+        
+        tabPanel('KEGG pathways',
+                 p('Source: Therapeutic Target Database'),
+                 tableOutput('keg')) ,
+        
+        tabPanel('zebrafish STITCH',
+                 p('Source: stitch.embl.de'),
+                 tableOutput('zsti')) ,
+        
+        tabPanel('human STITCH',
+                 p('Source: stitch.embl.de'),
+                 tableOutput('hsti'))
       )
     )
     
@@ -96,6 +115,11 @@ ui <- fluidPage(
 
 
 # server ------------------------------------------------------------------
+
+# about progress bars:
+# currently a bit of a cheap trick: it is started at 0.3 then updated to 1.0 when done
+# at least user knows something is going on
+# it seems like using a Progress object could make it more precise but requires more work
 
 server <- function(input, output, session) {
   
@@ -133,7 +157,7 @@ server <- function(input, output, session) {
                  
                  
                  ### rank drugs vs fingerprint ###
-                 withProgress(message='Ranking drugs vs fingerprint', value=0.3, {
+                 withProgress(message='ranking drugs', value=0.3, {
                    vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
                                       dbPath='drugDb.csv', 
                                       metric='cosine')
@@ -142,7 +166,7 @@ server <- function(input, output, session) {
                  
                  
                  ### calculate enrichment TTD indications ###
-                 withProgress(message='Calculating indications enrichment', value=0.3, {
+                 withProgress(message='calculating indications', value=0.3, {
                    ind <- drugEnrichment(vdbr=vdbr,
                                          namesPath='compounds.csv',
                                          annotationPath='TTDindications.csv',
@@ -154,6 +178,22 @@ server <- function(input, output, session) {
                                          statsExport=NA)
                    incProgress(1.0)
                  })
+                 
+                 
+                 ### calculate enrichment TTD targets ###
+                 withProgress(message='calculating targets', value=0.3, {
+                   tar <- drugEnrichment(vdbr=vdbr,
+                                         namesPath='compounds.csv',
+                                         annotationPath='TTDtargets.csv',
+                                         annotation='TTDtargets',
+                                         whichRank='rankeq',
+                                         minNex=3,
+                                         ndraws=ndraws,
+                                         alphaThr=alphaThr,
+                                         statsExport=NA)
+                   incProgress(1.0)
+                 })
+                 
                  
                  
                  ### fingerprint table ###
@@ -201,6 +241,11 @@ server <- function(input, output, session) {
                  ### TTD indications ###
                  output$ind <- renderTable({ # indications statistics report
                    return(ind) # this becomes 'ind' in ui
+                 })
+                 
+                 ### TTD targets ###
+                 output$tar <- renderTable({ # TTD targets statistics report
+                   return(tar) # this becomes 'tar' in ui
                  })
   })
   
