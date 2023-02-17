@@ -1,0 +1,871 @@
+###################################################
+# ~~~ predictive pharmacology functions ~~~
+
+# function sampleEnrich
+# input is a ranked list of annotations,
+# from maximum (closest to 1.0) to minimum (closest to -1.0) correlation with fingerprint
+# function calculates enrichment for one annotation, namely:
+# positive enrichment, i.e. is annotation enriched in the positive correlations
+# negative enrichment, i.e. is annotation enriched in the negative correlations
+
+# Francois Kroll 2022
+# francois@kroll.be
+###################################################
+
+### v2
+# no more splitting the ranked list in positive and negative cosines
+# this approach could miss a situation where e.g. there are 100 Dopamine D2 receptor drugs; they are ALL in negative cosines but not in extreme ranks
+# instead, have ranks represent distance from 0 (but all positive) and do sum of ranks as before
+
+### v3
+# idea to speed up the draws
+# take 10,000 draws
+# as soon as 500 draws have a more extreme sum of ranks, we know the final p-value will be > 0.05
+# so we could keep a count and report the minimum possible p-value as soon as there is no point trying further
+
+
+# packages ----------------------------------------------------------------
+
+library(ggpubr)
+library(lsa)
+library(openxlsx)
+library(data.table)
+library(stringr)
+
+
+
+# function drugEnrichment(...) --------------------------------------------
+
+# overarching function to test enrichment of annotations
+# vdb is ranked drugDb
+
+drugEnrichment <- function(vdbr,
+                           namesPath=NA,
+                           annotationPath,
+                           annotation,
+                           whichRank='rank0',
+                           minScore=NA,
+                           minNex,
+                           ndraws,
+                           alphaThr=0.05,
+                           maxPval=NA) {
+  
+  
+  ### swap each drug for its annotations
+  
+  if(annotation=='indications') {
+    annotationCol <- 'indication'
+  } else if (annotation=='zebrafishSTITCH') {
+    annotationCol <- 'ENSP'
+  } else if (annotation=='humanSTITCH') {
+    annotationCol <- 'ENSP'
+  }
+  
+  radf <- swapDrugsforAnnotations(vdbr=vdbr,
+                                  namesPath=namesPath,
+                                  annotationPath=annotationPath,
+                                  annotation=annotation,
+                                  annotationCol=annotationCol,
+                                  minScore=minScore)
+  
+  
+  ### test enrichments with random draws
+  # loop through unique annotations and test each
+  uan <- sort(unique(radf[,which(colnames(radf)==annotationCol)]))
+  
+  anr <- lapply(1:length(uan), function(a) {
+    
+    ua <- uan[a]
+    
+    ## loading bar
+    # how far are we in %?
+    perpro <- round((a/length(uan)) * 100)
+    # if 0, replace by 1 to keep below simple
+    if(perpro==0) {
+      perpro <- 1
+    }
+    # that is how many _ with replace by # in the loading bar
+    lobar <- paste0( paste(rep('#', perpro), collapse='') , paste(rep('_', 100-perpro), collapse='') , collapse='')
+    cat('\t \t \t \t', lobar, '\n')
+    cat('\t \t \t \t >>> Testing', annotation,':', ua,'\n')
+    
+    sampleEnrich(radf=radf,
+                 annotationCol=annotationCol,
+                 testAnnotation=ua,
+                 whichRank=whichRank,
+                 minNex=minNex,
+                 ndraws=ndraws,
+                 alphaThr=alphaThr,
+                 maxPval=maxPval)
+    
+  })
+  anr <- as.data.frame(rbindlist(anr))
+  
+  cat('\n \t \t \t \t Correction of random draws p-values \n')
+  
+  ### Bonferonni correction of pvals
+  siBon <- signiBonferonni(pvs=anr$pval,
+                           alphaThr=0.05)
+  anr <- anr %>%
+    add_column(bonferonni=siBon, .after='pval')
+  
+  ### Benjamini-Hochberg correction of pvals
+  siBH <- signiBenjaminiHochberg(pvs=anr$pval,
+                                 alphaThr=0.05)
+  
+  anr <- anr %>%
+    add_column(benhoch=siBH, .after='bonferonni')
+  
+  #######
+  
+  cat('\n \t \t \t \t Correction of KS test p-values \n')
+  
+  ### Bonferonni correction of KS pvals
+  kssiBon <- signiBonferonni(pvs=anr$kspval,
+                             alphaThr=0.05)
+  anr <- anr %>%
+    mutate(KSbonferonni=kssiBon, .after='kspval')
+  
+  
+  ### Benjamini-Hochberg correction of pvals
+  kssiBH <- signiBenjaminiHochberg(pvs=anr$kspval,
+                                   alphaThr=0.05)
+  anr <- anr %>%
+    add_column(KSbenhoch=kssiBH, .after='KSbonferonni')
+  
+  
+  ## add back some information about the annotations
+  if(annotation=='zebrafishSTITCH') {
+    # import zebrafish STITCH
+    zpro <- fread(here('annotateDrugDb/zebrafishSTITCH.csv'))
+    # keep only the protein annotations
+    # only need one example for each protein (cf. duplicated below)
+    zpro <- zpro[!duplicated(zpro$ENSP), c('species', 'ENSP', 'ENSG', 'gene_name', 'gene_symbol', 'gene_biotype')]
+    # change column name so we can merge with statistics results
+    colnames(zpro)[which(colnames(zpro)=='ENSP')] <- 'annotation'
+    # merge
+    # we want to keep all rows in anr (and not necessarily take all rows of zpro)
+    anr <- right_join(zpro, anr, by='annotation')
+    
+  }
+  
+  
+  ## order with lowest pval on top
+  anr <- anr[order(anr$pval),]
+  
+  return(anr)
+  
+}
+# function rankDrugDb(...) ------------------------------------------------
+
+# takes legacy fingerprint as input and ranks the drug database
+# from drug generating closest phenotype on top to drug generating most opposite phenotype at bottom
+
+rankDrugDb <- function(legacyFgp,
+                       dbPath,
+                       metric) {
+  
+  ### import drugDb
+  ddb <- read.csv(dbPath)
+  
+  # detect column where Z-scores start
+  zcol <- min(which(startsWith(colnames(ddb), 'night')))
+  
+  # detect column where Z-scores end
+  zcoll <- max(which(startsWith(colnames(ddb), 'night')))
+  
+  # (this way if we add columns it does not break the function)
+  
+  
+  ### calculate correlation vs legacyFgp
+  dcor <- sapply(1:nrow(ddb), function(d) {
+    # drug fingerprint is:
+    dfp <- as.numeric(ddb[d, zcol:ncol(ddb)])
+    # correlation ( drug fingerprint , input fingerprint )
+    cor( dfp , legacyFgp$zsco )
+  })
+  
+  ### calculate cosine similarity vs legacyFgp
+  dcos <- sapply(1:nrow(ddb), function(d) {
+    # drug fingerprint is:
+    dfp <- as.numeric(ddb[d, zcol:ncol(ddb)])
+    # correlation ( drug fingerprint , input fingerprint )
+    cosine( dfp , legacyFgp$zsco )
+  })
+  
+  # add columns
+  vdb <- ddb %>%
+    add_column(cor=dcor, .after='name') %>%
+    add_column(cos=dcos, .after='name')
+  # v for drugs VS fingerprint
+  
+  
+  ### order drug db according to metric chosen by user
+  if (metric=='correlation') {
+    simCol <- which(colnames(vdb)=='cor')
+  } else if (metric=='cosine') {
+    simCol <- which(colnames(vdb)=='cos')
+  } else {
+    stop('\t \t \t \t >>> Error rankDrugDb: unknown metric \n')
+  }
+  # order drug db
+  vdbr <- vdb[rev(order(vdb[,simCol])),]
+  
+  
+  ### add rank columns
+  
+  # "rank" is simply 1 to last row
+  vdbr <- vdbr %>%
+    add_column(rank=1:nrow(vdbr), .after=1)
+  
+  # "ranks" is rank/distance from 0, using negative ranks for negative cosines
+  # s for signed
+  # i.e. 1, 2, 3, ..., -1, -2, -3, ...
+  # preallocate the column
+  vdbr <- vdbr %>%
+    add_column(ranks=NA, .after='rank')
+  # set all the ranks of the positive cosines
+  vdbr[which(vdbr$cos>0), 'ranks'] <- length(which(vdbr$cos>0)) : 1 # i.e. we go e.g. 2000, 1999, 1998, etc. so that rank 1 is something like cos ~ +0.001
+  # set all the ranks of the negative cosines
+  vdbr[which(vdbr$cos<0), 'ranks'] <- -(1 : length(which(vdbr$cos<0))) # i.e. we go e.g. 1, 2, 3, etc. so that rank 1 is something like cos ~ -0.001
+  
+  # "rank0" is absolute rank from 0, i.e. not using negative ranks
+  # we simply copy ranks but remove the sign
+  vdbr <- vdbr %>%
+    mutate(rank0=abs(ranks), .after='rank')
+  
+  # "rankeq", e stands for "equally distant"
+  # an issue arises when there is a strong imbalance
+  # in number of annotations with negative cos vs number of annotations with positive cos
+  # say there is only 10 annotations on negative cos side
+  # and 100 annotations on positive cos side
+  # and annotationTest (e.g. protein X) was top3 negatives, i.e. rank 10, 9, 8, sum of ranks = 27
+  # random draws will almost always draw ranks in the positives, simply because there are more of them
+  # and even mediocre positive ranks will beat 27, e.g. 37 + 40 + 48
+  # summing the cos instead of the ranks may marginally help but is likely not a complete solution
+  # say most of the annotations are around cos = 0.8, the random draws will always find a bigger sum than the real one,
+  # even if the real one is the maximum negative it can be, say 0.7 + 0.7 + 0.7
+  # attempt is to essentially weigh the ranks based on the number of annotations in positives or negatives
+  # imagine the ranked list is a ruler of 2 cm, going from -1.0 to 1.0, we put cos ~ 0 at 0 cm
+  # then we spread out all the annotations on each side,
+  # putting as much distance as possible between them to fill the 1-cm of space that we have
+  # the distance of each annotation from 0 is now the rank
+  # in example above, each annotation in negative (N = 10) would count for 1 cm/10 = 0.1 cm
+  # so starting at 0 and moving left, ranks will be -0.1, -0.2, -0.3, etc.
+  # each annotation in positive (N = 100) would count for 1 cm/100 = 0.01 cm
+  # so starting at 0 and moving right, ranks wil be +0.01, +0.02, +0.03, etc.
+  # this does not solve the imbalance per se (there are still more annotations in positive cosines)
+  # but the sum of ranks will be down-weighted, i.e. each annotation drawn from the positive cos is worth less
+  # I think this makes intuitive sense because in case there is no imbalance, annotations on either side will count for the same
+  
+  # preallocate the column
+  vdbr <- vdbr %>%
+    add_column(rankeq=NA, .after='rank')
+  # below: does not necessarily need to be 1000, we could pick any number
+  # e.g. 1/ ~ 3000 will make a tiny number, which when summed may look like a scale from 0 to 1 (like a correlation or p-value)
+  # using e.g. 1000 makes it so so we usually have some number above 1 when summing a few ranks
+  posstep <- 1000/length(which(vdbr$cos>0))
+  negstep <- 1000/length(which(vdbr$cos<0))
+  vdbr[which(vdbr$cos>0), 'rankeq'] <- rev(seq(posstep, posstep*length(which(vdbr$cos>0)), posstep))
+  # from top of the list going down up to cos ~ 0, rankeq goes something like 1000, 999.5, 999, etc.
+  vdbr[which(vdbr$cos<0), 'rankeq'] <- seq(negstep, negstep*length(which(vdbr$cos<0)), negstep)
+  # from cos ~ 0 going down, rankeq goes something like 0.5, 1.0, 1.5, etc.
+  # check no more NA:
+  if(sum(is.na(vdbr$rankeq))>0) stop('\t \t \t \t >>> Error: some NA in rankeq column. \n')
+  
+  # note, ranks or rank0 or rankeq = 0 does not exist
+  # right in the middle of the list you have something like:
+  # ranks = 1 / rank0 = 1 / rankeq = 0.5 / cos = +0.001
+  # ranks = -1 / rank0 = 1 / rankeq = 0.25 / cos = -0.001
+  
+  return(vdbr)
+  
+}
+
+
+
+
+
+
+
+
+# function swapDrugsforAnnotations(...) -----------------------------------
+# this is a common function to switch the compounds for their annotations
+# previously, was a bunch of functions such as rankIndications and rankSTITCHzebrafish
+# but they were mostly redundant, best to perform the task with one common function
+
+swapDrugsforAnnotations <- function(vdbr,
+                                    namesPath,
+                                    annotationPath,
+                                    annotation,
+                                    annotationCol,
+                                    minScore=NA) {
+  
+  ### check we can deal with this annotation
+  if(! annotation %in% c('indications', 'zebrafishSTITCH')) stop('\t \t \t \t >>> Error drugEnrichment: does not currently support this annotation.
+         Possible annotations are: "indications", "targets", "targetBioclass", "keggPathways", "zebrafishSTITCH"')
+  
+  ### import names
+  dnms <- read.xlsx(namesPath, sheet='names')
+  
+  
+  ### import annotations
+  # method depends slightly on the annotation
+  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH')) {
+    ano <- fread(annotationPath, na.strings='')
+  } else if (annotation=='indications') {
+    ano <- read.xlsx(annotationPath, sheet='indications')
+  }
+  
+  # data.table format is causing some trouble later
+  ano <- as.data.frame(ano)
+  
+  # if we are looking at STITCH targets and minScore is given, trim some interactions
+  if(annotation %in% c('zebrafishSTITCH', 'humanSTITCH') & !is.na(minScore)) {
+    cat('\t \t \t \t >>> minScore threshold =', minScore, ': keeping', nrow(subset(ano, score >= minScore)), 'interactions out of', nrow(ano), '\n')
+    ano <- subset(ano, score >= minScore)
+    cat('\t \t \t \t >>>' , length(unique(ano[, annotationCol])),'unique proteins left \n')
+  }
+  
+  
+  ### rank annotations
+  # add names to vdbr
+  # we want to keep all rows in vdbr, i.e. the ranked list of compounds
+  # but not necessarily all rows in names
+  cdb <- left_join(vdbr, dnms, by='name')
+  
+  # drugs are already ranked by rankDrugDb
+  # make a simple db with CIDs, cos, rank columns
+  # (i.e. delete the fingerprints)
+  cdb <- cdb[, c('cid', 'cos', 'rank', 'rank0', 'ranks', 'rankeq')]
+  # remove NA CID, if any
+  nacid <- which(is.na(cdb$cid))
+  if(length(nacid)>0) {
+    cdb <- cdb[-nacid,]
+  }
+  
+  # now to order annotations from top correlating to worst
+  # cdb should basically be used as entries to database ano
+  # for every CID, we return all annotations and repeat the cosine
+  # if that CID occurs again, we return the same annotations again
+  # 30/01/2023: we now assign same rank to every target of a given compound
+  # e.g. aspirin is rank 10 and has 5 targets, each of these targets gets rank 10
+  # previously, we were assigning ranks on the annotations
+  # I think this is more accurate, because e.g. aspirin's targets could have been rank 56, 57, 58, 59, 60
+  # while the difference between rank 56 and rank 60 is meaningless (they all have the same cos, so are at the same distance from 0)
+  # graphically, it is like these 5 targets should all be on top of each other at the same distance from 0
+  stl <- lapply(1:nrow(cdb), function(cr) {
+    
+    # indices with annotations for this drug (look by CID)
+    it <- which(ano$cid==cdb[cr, 'cid'])
+    
+    # if no targets
+    if (length(it)==0) {
+      NULL
+      
+      # if some targets
+    } else {
+      # return the rows from STITCH
+      return ( cbind(ano[it,],
+                     cos=cdb[cr, 'cos'],
+                     rank=cdb[cr, 'rank'],
+                     rank0=cdb[cr, 'rank0'],
+                     ranks=cdb[cr, 'ranks'],
+                     rankeq=cdb[cr, 'rankeq']))
+    }
+  })
+  stl <- rbindlist(stl)
+  
+  # about replicates (same drug/different experiments):
+  # say one drug has 3 replicates, so 3 cos values
+  # and this drug has 15 STITCH targets
+  # above will record all 15 STITCH targets for replicate1 / those will be assign all same cos & all same rank, from replicate1
+  # then will record all 15 STITCH targets again for replicate2 / those will be assign all same cos & all same rank, from replicate2
+  # etc.
+  # which I think is what we want
+  # alternative would be to average the 3 cos but I think better to keep all the data
+  
+  # as we added rows, we can order again
+  # (but should be useless as still ordered by cos)
+  stl <- stl[rev(order(stl$cos)),]
+  # remember, one drug x target interaction can be at multiple positions
+  # as each replicate of this drug has its own cos
+  
+  return(as.data.frame(stl))
+  
+  
+}
+
+# function sampleEnrich(...) ----------------------------------------------
+
+# are these scores surprising?
+# we can tell by drawing some rows at random and calculating the sum of ranks, many times
+# small function to do this
+sampleEnrich <- function(radf,
+                         annotationCol,
+                         testAnnotation,
+                         whichRank,
+                         minNex,
+                         ndraws,
+                         alphaThr=0.05,
+                         maxPval=NA) {
+  # ! we assume radf is ranked list of annotations
+  # from max cos to min cos in comparison to a given fingerprint
+  
+  # remember radf is ranked from cos ~ 1 to cos ~ -1
+  # confirm this:
+  if(radf[1,'cos'] < 0)
+    stop('\t \t \t \t >>> Error sampleEnrich: top drug does not have a positive cosine.
+         sampleEnrich expects list of drugs ranked from most positive cosine at the top to most negative cosine at the bottom \n')
+  if(radf[nrow(radf),'cos'] > 0)
+    stop('\t \t \t \t >>> Error sampleEnrich: last drug does not have a negative cosine.
+         sampleEnrich expects list of drugs ranked from most positive cosine at the top to most negative cosine at the bottom \n')
+  
+  
+  ### do we have enough examples of testAnnotation to calculate statistics?
+  # if not, do not waste time and stop now
+  # number of instances of the annotation to be tested?
+  nano <- length(which(radf[,annotationCol]==testAnnotation))
+  # is that enough?
+  if (nano < minNex) {
+    cat('\t \t \t \t >>> Fewer than', minNex, 'examples, skip \n')
+    statres <- data.frame(annotation=testAnnotation, nexamples=nano,
+                          sumRanks=NA, sumRanksnorm=NA, bestPos=NA, sumRanksFracPos=NA,
+                          sumRanksDir=NA, sumRanksDirnorm=NA,
+                          ndraws=NA, nhigher=NA, pval=NA,
+                          ksD=NA, kspval=NA )
+    return(statres)
+  }
+  # if enough examples, will continue below
+  
+  
+  ### calculate sum of ranks for given annotation
+  # this gives a measure of "how distant from 0, on either side"
+  # which type of rank we use depends on setting whichRank
+  sr <- sum(radf[which(radf[,annotationCol]==testAnnotation), whichRank]) # sr for sum of ranks
+  
+  # ! say Schizophrenia has 50 drugs and Autism has 5 drugs
+  # then we expect bigger scores for Schizophrenia regardless of whether it is actually more enriched
+  # we can normalise the scores by dividing by the number of times that annotation was present
+  srn <- sr / nano # srn for sum of ranks normalised
+  
+  ### what is the best possible sum of ranks?
+  # say there are 20 instances of a given annotation
+  # it is simply the top20 whichRank, i.e. most distant from 0
+  # this could represent an extreme left enrichment or extreme right enrichment or extreme binomial
+
+  # EDIT: I think simply taking the top e.g. 10 overestimates slightly the best possible sum of ranks
+  # e.g. aspirin is top correlating drug, it has rankeq = 1000 and it has 10 targets
+  # all of aspirin's targets will be assigned rankeq = 1000, so best possible sum of ranks will be = 1000 + 1000 + 1000 + ...
+  # but in practice, one compound (usually*) does not have twice the same target
+  # [* note this does happen as of 01/02/2023 because we were quite conservative when removing duplicates in STITCH]
+  # [so we left e.g. same compound interacting with same protein, but once inhibition and once activation]
+  # rather, best possible sum of ranks should reflect a situation where top 10 compounds all interact with target of interest
+  # to simulate this, simply take the top 10 *unique* whichRank
+  # e.g. 1000 + 998.5 + ... (even if 1000 is actually repeated multiple times in radf)
+  # so take *unique* whichRank, sort them, sum the top `number of instances`
+  bsr <- sum ( rev(sort(unique(radf[,whichRank]))) [1:nano] )
+  
+  
+  ### calculate sum of ranks, including negative ranks
+  # this will give a general direction to the enrichment
+  # e.g. if all instances are on enriched in negative cosines, we get a negative score here
+  # note, a perfect binomial is interesting / a distribution perfectly in the center around cos ~ 0 is not
+  # but the two will give score ~ 0
+  srs <- sum(radf[which(radf[,annotationCol]==testAnnotation), 'ranks']) # s for signed
+  # we can also normalise this score
+  srsn <- srs / nano # srsn for sum of ranks signed normalised
+  # I think there is no point calculating the best possible score here
+  # as = 0 or = very negative number = very positive number are all potentially interesting
+  
+  
+  ### SAMPLING PROCEDURE ###
+  # if sufficient number of examples
+  # draw number of instances and sum ranks
+  
+  # if we are given a maximum p-value, after how many more-extreme simulations should we stop?
+  # e.g. if we are not interested in p-value above 0.1, there is no point spending time doing 100,000 simulations
+  # we can stop as soon as we know that the p-value will be above 0.1
+  if(!is.na(maxPval) & maxPval < 1) {
+    maxnsim <- ndraws * maxPval
+    # e.g. we will do *up to* 100,000 draws and the max p-value is 0.1
+    # then as soon as 100,000 * 0.1 = 10,000 draws are more extreme, we know final p-value will be > 0.1
+  } else {
+    maxnsim <- ndraws
+  }
+  
+  # counter
+  # number of simulations which give a more extreme sum of ranks
+  # (the more there are, the less evidence for a surprising enrichment there is)
+  nsim <- 0
+  for(nd in 1:ndraws) {
+    
+    # draw new `number of instances` ranks
+    # and sum them
+    dsr <- sum(sample(radf[,whichRank], size=nano)) # draw sum of ranks
+    
+    # is this sum of ranks more extreme than the real one?
+    # if yes, count it
+    if(dsr > sr) {
+      nsim <- nsim + 1
+    }
+    
+    # should we give up?
+    if(nsim >= maxnsim) break
+    
+  }
+  
+  ### calculate p-value
+  # how many simulations gave a more extreme sum of ranks?
+  # approximate p-value is
+  pv <- nsim / ndraws
+  
+  # note, we should not be creating any p-value = 0
+  # instead, the minimum p-value depends on the number of draws
+  # e.g. if we do N=1000 draws, then the minimum p-value is 1/1000 = 0.001
+  if(nsim==0) {
+    pv <- 1/ndraws
+  }
+  
+  
+  ### test enrichment with KS test
+  # ranks where we find the annotation are
+  rks <- radf[which(radf[,annotationCol]==testAnnotation), 'rank']
+  # note, I think we do not want to use rank0 or rankeq here
+  # rank0 is absolute distance from 0 so repeats in the negative
+  # i.e. a large rank0 could mean very positive cos OR very negative cos
+  # but KS test procedure involves sorting in increasing order, so will mix up positive cos and negative cos
+  # between rank and ranks makes no difference (tested)
+  ks <- ks.test( rks , radf$rank )
+  kspval <- as.numeric(ks$p.value)
+  
+  
+  
+  ### return statistics report
+  # (one row of the statistics report)
+  statres <- data.frame(annotation=testAnnotation, nexamples=nano,
+                        sumRanks=sr, sumRanksnorm=srn, bestPos=bsr, sumRanksFracPos=abs(sr/bsr),
+                        sumRanksDir=srs, sumRanksDirnorm=srsn,
+                        ndraws=ndraws, nhigher=nsim, pval=pv,
+                        ksD=as.numeric(ks$statistic), kspval=kspval)
+  
+  return(statres)
+  
+}
+
+
+
+# function rankTargets(...) -----------------------------------------------
+
+# small function to rank targets ready to calculate enrichment
+# vdb is drugDb ranked
+# path is path to drugAnnotations.xlsx
+
+rankTargets <- function(vdb,
+                        annotationPath) {
+  
+  
+  ### import drugAnnotations
+  dnms <- read.xlsx(annotationPath, sheet='names')
+  tar <- read.xlsx(annotationPath, sheet='targets')
+  
+  
+  ### rank targets
+  # add names to vdb
+  # we want to keep all rows in vdb
+  vdba <- left_join(vdb, dnms, by='name')
+  
+  # drugs are already ranked by rankDrugDb
+  # make a simple db with TIDs and cos
+  cdb <- vdba[, c('tid', 'cos')]
+  # remove any NA TID
+  cdb <- cdb[-which(is.na(cdb$tid)),]
+  
+  # in targets, there are duplicates
+  # duplicated drugs is expected, but not same drug/same indication
+  # I do not know why, should check carefully annotateDrugDb.R later
+  # here, remove duplicates, i.e. same drug & target twice
+  tar <- tar[- which(duplicated(paste(tar$tid, tar$TARGETID, tar$BIOCLASS))),]
+  
+  # now to order targets from top correlating to worst
+  # cdb should basically be used as a database
+  # for every tid, we return all targets and repeat the cosine
+  # if that tid occurs again, we return the same targets again
+  tal <- sapply(1:nrow(cdb), function(cr) {
+    
+    # indices with indications for this drug (look by TID)
+    it <- which(tar$tid==cdb[cr, 'tid'])
+    
+    # if no indication
+    if (length(it)==0) {
+      NULL
+      
+      # if some indications
+    } else {
+      # return a small dataframe with indications and cos
+      return ( cbind(tar[it,], cos=cdb[cr, 'cos']) )
+    }
+  })
+  tal <- rbindlist(tal)
+  
+  # say one drug has 3 replicates, so 3 cos values
+  # above repeats the 3 indications, each with one of the 3 cos value
+  # which is what we want
+  # alternative would be to average the 3 cos but I think nicer to keep all the data
+  
+  # ! we need to rank again as we added rows
+  tal <- tal[rev(order(tal$cos)),]
+  # remember, one drug/target can be at multiple positions
+  # as each replicate of this drug has its own cos
+  
+  tal <- tal %>%
+    add_column(rank=1:nrow(tal), .before=1)
+  
+  return(as.data.frame(tal))
+  
+}
+
+
+
+# function rankKegg(...) --------------------------------------------------
+
+rankKegg <- function(vdb,
+                     annotationPath) {
+  
+  
+  ### import drugAnnotations
+  dnms <- read.xlsx(annotationPath, sheet='names')
+  tar <- read.xlsx(annotationPath, sheet='targets')
+  keg <- read.xlsx(annotationPath, sheet='KEGGpathways')
+  
+  
+  ### rank targets
+  # KEGG pathways are associated with targets, not compounds
+  # so we must first rank the targets, then we will use the order of the targets to rank the pathways
+  tal <- rankTargets(vdb=vdb,
+                     annotationPath=annotationPath)
+  
+  
+  
+  ### rank KEGG pathways
+  # to order pathways from top correlating to worst,
+  # we essentially use KEGG pathways as a database
+  # for every target, we return all pathways and repeat the cosines
+  # if that target occurs again, we return the same pathways again
+  kel <- sapply(1:nrow(tal), function(ta) {
+    
+    # which target ID do we have?
+    taid <- tal[ta, 'TARGETID']
+    
+    # indices with pathways for this target (look by TID)
+    ki <- which(keg$TARGETID==taid)
+    
+    # if no indication
+    if (length(ki)==0) {
+      NULL
+      
+      # if some indications
+    } else {
+      # return a small dataframe with indications and cos
+      return ( cbind(keg[ki,], cos=tal[ta, 'cos']) )
+    }
+  })
+  kel <- rbindlist(kel)
+  
+  # say one drug has 3 replicates, so 3 cos values
+  # above repeats the 3 indications, each with one of the 3 cos value
+  # which is what we want
+  # alternative would be to average the 3 cos but I think nicer to keep all the data
+  
+  # ! we need to rank again as we added rows
+  # remember, cos ties each pathway back to the original compound/experiment
+  # e.g. aspirin has cos = 0.8, binds to kinase X which affects estrogen signalling
+  # then estrogen signalling gets assigned cos = 0.8
+  # say morphin has cos = 0.3; binds to kinase Y which also affects estrogen signalling
+  # then there will be another row with estrogen signalling and cos = 0.3
+  kel <- kel[rev(order(kel$cos)),]
+  # remember, one drug/target can be at multiple positions
+  # as each replicate of this drug has its own cos
+  
+  kel <- kel %>%
+    add_column(rank=1:nrow(kel), .before=1)
+  
+  return(as.data.frame(kel))
+  
+}
+
+
+
+
+# function rankSTITCHzebrafish(...) ---------------------------------------
+
+# example
+# namesPath <- here('annotateDrugDb', 'drugAnnotations_TTD.xlsx')
+# annotationPath <- here('annotateDrugDb', 'zebrafishSTITCH.csv')
+# minScore <- 700
+
+rankSTITCHzebrafish <- function(vdbr,
+                                namesPath,
+                                annotationPath,
+                                minScore) {
+  
+  ### import names
+  dnms <- read.xlsx(namesPath, sheet='names')
+  
+  
+  ### import zebrafish STITCH
+  zsti <- fread(annotationPath, na.strings='')
+  
+  # if minScore is given, trim some interactions
+  if(!is.na(minScore)) {
+    cat('\t \t \t \t >>> minScore threshold =', minScore, ': keeping', nrow(subset(zsti, score >= minScore)), 'interactions out of', nrow(zsti), '\n')
+    zsti <- subset(zsti, score >= minScore)
+    cat('\t \t \t \t >>>' , length(unique(zsti$ENSP)),'unique proteins left \n')
+  }
+  
+  
+  ### rank STITCH
+  # add names to vdbr
+  # we want to keep all rows in vdbr
+  cdb <- left_join(vdbr, dnms, by='name')
+  
+  # drugs are already ranked by rankDrugDb
+  # make a simple db with CIDs, cos, rank columns
+  # (i.e. delete the fingerprints)
+  cdb <- cdb[, c('cid', 'cos', 'rank', 'rank0', 'ranks', 'rankeq')]
+  # remove NA CID, if any
+  nacid <- which(is.na(cdb$cid))
+  if(length(nacid)>0) {
+    cdb <- cdb[-nacid,]
+  }
+  
+  # now to order STITCH from top correlating to worst
+  # cdb should basically be used as entries to database zsti
+  # for every CID, we return all STITCH targets and repeat the cosine
+  # if that CID occurs again, we return the same STITCH targets again
+  # 30/01/2023: we now assign same rank to every target of a given compound
+  # e.g. aspirin is rank 10 and has 5 targets, each of these targets gets rank 10
+  # previously, we were assigning ranks on the targets
+  # I think this is less inaccurate, because e.g. aspirin's targets could have been rank 56, 57, 58, 59, 60
+  # while the difference between rank 56 and rank 60 is meaningless (they all have the same cos, so are at the same distance from 0)
+  # graphically, it is like these 5 targets should all be on top of each other at the same distance from 0
+  stl <- lapply(1:nrow(cdb), function(cr) {
+    
+    # indices with targets for this drug (look by CID)
+    it <- which(zsti$cid==cdb[cr, 'cid'])
+    
+    # if no targets
+    if (length(it)==0) {
+      NULL
+      
+      # if some targets
+    } else {
+      # return the rows from STITCH
+      return ( cbind(zsti[it,],
+                     cos=cdb[cr, 'cos'],
+                     rank=cdb[cr, 'rank'],
+                     rank0=cdb[cr, 'rank0'],
+                     ranks=cdb[cr, 'ranks'],
+                     rankeq=cdb[cr, 'rankeq']))
+    }
+  })
+  stl <- rbindlist(stl)
+  
+  # about replicates (same drug/different experiment):
+  # say one drug has 3 replicates, so 3 cos values
+  # and this drug has 15 STITCH targets
+  # above will record all 15 STITCH targets for replicate1 / those will be assign all same cos & all same rank, from replicate1
+  # then will record all 15 STITCH targets again for replicate2 / those will be assign all same cos & all same rank, from replicate2
+  # etc.
+  # which I think is what we want
+  # alternative would be to average the 3 cos but I think better to keep all the data
+
+  # as we added rows, we can order again
+  # (but should be useless as still ordered by cos)
+  stl <- stl[rev(order(stl$cos)),]
+  # remember, one drug x target interaction can be at multiple positions
+  # as each replicate of this drug has its own cos
+  
+  return(as.data.frame(stl))
+  
+}
+
+
+
+
+
+
+# function signiBonferonni(...) -------------------------------------------
+
+# given a bunch of p-values, return TRUE or FALSE or NA after checking against threshold Bonferonni-corrected
+
+signiBonferonni <- function(pvs,
+                            alphaThr) {
+  ### Bonferonni correction of pvals
+  # how many p-values did we generate? This is the number of hypotheses we tested
+  npvs <- sum(!is.na(pvs))
+  # hence, new alpha threshold is
+  alpBon <- alphaThr/npvs
+  cat('\n \t \t \t \t >>>', npvs, 'hypotheses tested \n')
+  # add whether significant or not after Bonferonni correction
+  cat('\t \t \t \t \t >>> Bonferonni-corrected alpha threshold:', alpBon,'\n')
+  
+  return(pvs < alpBon)
+}
+
+
+
+
+# function signiBenjaminiHochberg(...) ------------------------------------
+
+signiBenjaminiHochberg <- function(pvs,
+                                   alphaThr) {
+  
+  ### Benjamini-Hochberg procedure for correction
+  cat('\t \t \t \t \t >>> Correcting p-values with Benjamini-Hochberg procedure \n')
+  
+  # how many p-values did we generate? This is the number of hypotheses we tested
+  npvs <- sum(!is.na(pvs))
+  
+  # 1- rank pvals from smallest to largest
+  pvord <- order(pvs) # ! record the order so we can return the TRUE/FALSE back in the same order at the end
+  pvs <- pvs[pvord]
+  
+  # 2- for each p-value starting from the smallest
+  # threshold is alpha * (rank / total number of tests)
+  pvBH <- sapply(1:length(pvs), function(rk) {
+    
+    # rk because position corresponds to rank, as we sorted the p-values
+    # calculate threshold
+    alpBH <- alphaThr * (rk / npvs)
+    # is the p-val significant or not?
+    return(pvs[rk] < alpBH)
+    
+  })
+  
+  # 3- as soon as one test is not significant, all the rest is non-significant
+  # correct this post-hoc
+  
+  # in rare cases, all p-values may be significant even after correction, i.e. below BH threshold
+  # in which case, we have nothing to correct
+  if(all(pvBH[!is.na(pvBH)])) { # if all (except NA) TRUE
+    pvBH <- pvBH[order(pvord)] # put the p-values back the original order
+    return(pvBH) # return statement closes the function without reading below
+  }
+  
+  # in most cases, some p-values become above threshold (i.e. ns):
+  ns1 <- which(!pvBH)[1] # first ns
+  # there may be some NAs at the end, which we should leave as NA
+  if(length(which(is.na(pvBH))) > 0) { # if there are some NAs at the end
+    nsla <- which(is.na(pvBH))[1] - 1
+  } else { # if not
+    nsla <- length(pvBH)
+  }
+  # now replace all these by FALSE (i.e. ns)
+  pvBH[ns1:nsla] <- FALSE
+  
+  # put the p-values back the original order
+  pvBH <- pvBH[order(pvord)]
+  
+  return(pvBH)
+}

@@ -12,6 +12,7 @@
 
 library(shiny)
 library(tidyr)
+library(ggplot2)
 
 
 
@@ -19,10 +20,14 @@ library(tidyr)
 
 source('legacyFingerprint.R')
 source('gglegacyFingerprint.R')
+source('sampleEnrich_v3.R')
 
 
 
 # settings ----------------------------------------------------------------
+
+Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
+# solution StackOverflow question 61656119
 
 # options(shiny.maxRequestSize = 30*1024^2) # maximum upload set to 30 Mb
 
@@ -35,10 +40,10 @@ ui <- fluidPage(
   ### app title
   titlePanel('Predictive pharmacology'),
   
-  # Sidebar layout with input and output definitions ----
+  ### sidebar layout = inputs on left, outputs on right
   sidebarLayout(
     
-    # Sidebar panel for inputs ----
+    ### sidebar
     sidebarPanel(
       
     ### .mat input widget
@@ -62,21 +67,19 @@ ui <- fluidPage(
       
     ),
     
-    # # Main panel for displaying outputs ----
-    # mainPanel(
-    #   
-    #   # Output: Data file ----
-    #   tableOutput("contents")
-    #   
-    # ),
-    
     mainPanel(
       tabsetPanel(
-        tabPanel('Fingerprint',
+        tabPanel('Table',
                  tableOutput('fgp')),
         
-        tabPanel('Fingerprint2',
-                 plotOutput('ggfgp'))
+        tabPanel('Fingerprint',
+                 plotOutput('ggfgp')),
+        
+        tabPanel('Drugs ranked',
+                 h3('Top 20'),
+                 tableOutput('topdr'), # topdr is for top X drugs
+                 h3('Bottom 20'),
+                 tableOutput('botdr')) # botdr is for bottom X drugs
       )
     )
     
@@ -89,6 +92,7 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   
   #### update the group selection when user drops a .mat file ####
+  # note input$mat_drop is NULL initially
   observeEvent(input$mat_drop, # means: observe the .mat import widget, if it changes, trigger the code below
                {
                  # import the .mat file
@@ -107,33 +111,33 @@ server <- function(input, output, session) {
   #### start stuff when user presses Go button ####
   observeEvent(input$go_button,
                {
+                 req(input$mat_drop) # check that mat file is available
+                 
+                 
+                 ### calculate fingerprint ###
+                 fgp <- legacyFingerprint(
+                   matPath=input$mat_drop$datapath,
+                   conGrp=input$conGrp_select,
+                   treGrp=input$treGrp_select,
+                   nights=c(2,3),
+                   days=c(2,3)
+                 )
+                 
+                 
+                 ### rank drugs vs fingerprint ###
+                 vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
+                                    dbPath='drugDb.csv', 
+                                    metric='cosine')
+                 
+                 
+                 ### fingerprint table ###
                  output$fgp <- renderTable({
-                   
-                   # input$mat is NULL initially
-                   
-                   req(input$mat_drop) # check that mat file is available
-                   
-                   fgp <- legacyFingerprint(
-                     matPath=input$mat_drop$datapath,
-                     conGrp=input$conGrp_select,
-                     treGrp=input$treGrp_select,
-                     nights=c(2,3),
-                     days=c(2,3)
-                   )
-                   
-                   return(fgp) # this becomes `fgp` in ui
-                   
+                   return(fgp) # this becomes 'fgp' in ui
                  })
                  
+                 
+                 ### fingerprint plot ###
                  output$ggfgp <-  renderPlot({
-                   
-                   fgp <- legacyFingerprint(
-                     matPath=input$mat_drop$datapath,
-                     conGrp=input$conGrp_select,
-                     treGrp=input$treGrp_select,
-                     nights=c(2,3),
-                     days=c(2,3)
-                     )
                    
                    ggfgp <- gglegacyFingerprint(
                      lFgp=fgp,
@@ -152,12 +156,21 @@ server <- function(input, output, session) {
                      height=NA
                      )
                    
-                   return(ggfgp)
+                   return(ggfgp) # this becomes 'ggfgp' in ui
                    
                  })
+                 
+                 
+                 ### top X drugs ###
+                 output$topdr <- renderTable({ # topdr is for top X drugs
+                   return(vdbr[1:20,]) # this becomes 'topdr' in ui
+                 })
+                 
+                 ### bottom X drugs ###
+                 output$botdr <- renderTable({ # botdr is for bottom X drugs
+                   return(vdbr[(nrow(vdbr)-19):nrow(vdbr),]) # this becomes 'topdr' in ui
+                 })
   })
-  
-  #### make fingerprint plot####
   
 }
 
