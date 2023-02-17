@@ -195,6 +195,21 @@ server <- function(input, output, session) {
                  })
                  
                  
+                 ### calculate enrichment KEGG pathways ###
+                 withProgress(message='calculating KEGG pathways', value=0.3, {
+                   keg <- drugEnrichment(vdbr=vdbr,
+                                         namesPath='compounds.csv',
+                                         annotationPath='TTDkegg.csv',
+                                         annotation='KEGG',
+                                         whichRank='rankeq',
+                                         minNex=3,
+                                         ndraws=ndraws,
+                                         alphaThr=alphaThr,
+                                         statsExport=NA)
+                   incProgress(1.0)
+                 })
+
+                 
                  
                  ### fingerprint table ###
                  output$fgp <- renderTable({
@@ -246,6 +261,11 @@ server <- function(input, output, session) {
                  ### TTD targets ###
                  output$tar <- renderTable({ # TTD targets statistics report
                    return(tar) # this becomes 'tar' in ui
+                 })
+                 
+                 ### KEGG pathways ###
+                 output$keg <- renderTable({ # KEGG pathways statistics report
+                   return(keg) # this becomes 'keg' in ui
                  })
   })
   
