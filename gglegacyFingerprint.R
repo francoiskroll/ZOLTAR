@@ -35,13 +35,13 @@ gglegacyFingerprint <- function(lFgp,
                                 exportPath,
                                 width=150,
                                 height=100) {
-
-  ### keep only groups we are plotting ###
-  # if not plotting every group:
-  if(!is.na(onlyGrp[1])) {
-    lFgp <- lFgp %>%
-      filter(grp %in% onlyGrp)
-  }
+  
+  
+  ### keep only some columns from fingerprint ###
+  # namely uparam, win, parameter, zsco
+  # we do not want columns meanCon, stdCon, meanTre, stdTre
+  lFgp <- lFgp %>%
+    select(uparam, win, parameter, zsco)
   
   
   ### set order of uparam ###
@@ -52,6 +52,21 @@ gglegacyFingerprint <- function(lFgp,
   # i.e. all day1 parameters, followed by all day2 parameters, etc.
   # we can achieve this by simply ordering by window, so we will get all day1 on top, then day2, then night1, then night2
   lFgp <- lFgp[order(lFgp$win),]
+  
+  ### if multiple fingerprints, make sure Z-scores given on top of each other ###
+  # assumes format is e.g. : uparam / win / parameter / drug1 / drug2 / KO
+  # drug1, drug2, KO being columns of Z-scores
+  lFgp <- lFgp %>%
+    pivot_longer(-c(uparam, win, parameter),
+                 names_to='grp',
+                 values_to='zsco')
+  
+  ### keep only groups we are plotting ###
+  # if not plotting every group:
+  if(!is.na(onlyGrp[1])) {
+    lFgp <- lFgp %>%
+      filter(grp %in% onlyGrp)
+  }
 
   
   ### how to connect datapoints in plot ###
@@ -72,8 +87,8 @@ gglegacyFingerprint <- function(lFgp,
 
   # below: find last 'day' parameter
   # we want the grey frame to start just after (+0.5)
-  xmid <- max(which(startsWith(as.character(lFgp$uparam), 'day'))) + 0.5
-
+  # take unique uparam
+  xmid <- max(which(startsWith(as.character(unique(lFgp$uparam)), 'day'))) + 0.5
 
   ### plot ###
   ggFgp <- ggplot(lFgp, aes(x=uparam, y=zsco, colour=grp, group=grp_win)) +
@@ -197,13 +212,16 @@ ggDrugFgp <- function(drugDb,
     if(!identical(dbn$uparam , legacyFgp$uparam))
       stop('\t \t \t \t >>> uparam are not given in same order in drugDb and legacyFingerprint, check manually \n')
     
-    # add zsco of legacyFgp to drug fingerprints we collected
+    # add fingerprints we find in legacyFgp
+    # ! will assume it is every columns not named uparam, win, parameter
+    cols2take <- which(! colnames(legacyFgp) %in% c('uparam', 'win', 'parameter'))
+    
     dbn <- dbn %>%
-      add_column(lfp=legacyFgp$zsco)
+      add_column(legacyFgp[,cols2take])
     
-    grpnm <- unique(legacyFgp$grp)
+    # grpnm <- unique(legacyFgp$grp)
     
-    colnames(dbn)[which(colnames(dbn)=='lfp')] <- grpnm
+    # colnames(dbn)[which(colnames(dbn)=='lfp')] <- grpnm
     # ! does not currently support multiple groups (e.g. HOM / HET), will need to improve later
     
   }

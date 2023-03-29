@@ -164,14 +164,15 @@ legacyFingerprint <- function(matPath,
 
 
   ### calculate fingerprint ####
+  # i.e. calculate Z-score from mean and std we extracted from the mat file
   fd <- fd %>%
     mutate(zsco=(meanTre-meanCon)/stdCon)
 
 
   ### add grp column ###
   # maybe useful if we end up appending multiple fingerprints
-  fd <- fd %>%
-    add_column(grp=treGrp, .after='parameter')
+  # fd <- fd %>%
+  #   add_column(grp=treGrp, .after='parameter')
 
   ### return fingerprint table ###
   return(fd)
@@ -206,11 +207,11 @@ legacyFingerprintMEAN <- function(matPaths,
   fdm <- do.call(cbind, fdl)
   # first 4 columns should always be uparam, win, parameter, grp
   # keep those + all columns called zsco
-  fdm <- fdm[, c(1, 2, 3, 4, which(colnames(fdm)=='zsco'))]
-  colnames(fdm)[which(startsWith(colnames(fdm), 'zsco'))] <- sprintf('zsco_exp%i', 1:length(matPaths))
+  fdm <- fdm[, c(1, 2, 3, which(colnames(fdm)=='zsco'))]
+  colnames(fdm)[which(startsWith(colnames(fdm), 'zsco'))] <- sprintf('exp%i', 1:length(matPaths))
   
   # now calculate mean of Z-scores
-  fdm$zsco <- apply(fdm[,which(startsWith(colnames(fdm), 'zsco'))], 1, mean)
+  fdm$zavg <- apply(fdm[,which(startsWith(colnames(fdm), 'exp'))], 1, mean)
   
   # ready to return
   return(fdm)

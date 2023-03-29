@@ -7,6 +7,10 @@
 # francois@kroll.be
 #####################################################
 
+# todo
+# click on row to make plot appear
+# https://stackoverflow.com/questions/71212121/r-shiny-click-on-table-field
+
 
 # packages ----------------------------------------------------------------
 
@@ -29,7 +33,7 @@ source('drawEnrich_v5.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 10
+ndraws <- 2
 alphaThr <- 0.05
 
 # options(shiny.maxRequestSize = 30*1024^2) # maximum upload set to 30 Mb
@@ -40,7 +44,7 @@ alphaThr <- 0.05
 
 ui <- fluidPage(
   
-  # theme=bslib::bs_theme(bootswatch='sandstone'),
+  #theme=bslib::bs_theme(bootswatch='sandstone'),
   #theme=bslib::bs_theme(bootswatch='united'), # maybe the font is too childish
   #theme=bslib::bs_theme(bootswatch='simplex'),
    
@@ -53,7 +57,6 @@ ui <- fluidPage(
   titlePanel('Predictive pharmacology'),
   # subtitle
   p(em('From behavioural fingerprint to drugs and pathways'), style='color:grey'),
-  # h4('Francois Kroll & Jason Rihel'),
   
   ### sidebar layout = inputs on left, outputs on right
   sidebarLayout(
@@ -88,11 +91,12 @@ ui <- fluidPage(
                  tableOutput('fgp')),
         
         tabPanel('Fingerprint',
+                 downloadButton('ggfgp_dl', 'download pdf'),
                  plotOutput('ggfgp')),
         
         tabPanel('Drugs ranked',
                  p('Drugs are ranked by decreasing cosine.'),
-                 downloadButton('ind_dl', 'download'),
+                 downloadButton('vdbr_dl', 'download'),
                  h3('Top 20'),
                  tableOutput('topdr'), # topdr is for top X drugs
                  h3('Bottom 20'),
@@ -100,14 +104,17 @@ ui <- fluidPage(
         
         tabPanel('Indications',
                  p('Source: Therapeutic Target Database'),
+                 downloadButton('ind_dl', 'download'),
                  tableOutput('ind')) ,
         
         tabPanel('Targets',
                  p('Source: Therapeutic Target Database'),
+                 downloadButton('tar_dl', 'download'),
                  tableOutput('tar')) ,
         
         tabPanel('KEGG pathways',
                  p('Source: Therapeutic Target Database'),
+                 downloadButton('keg_dl', 'download'),
                  tableOutput('keg')) ,
         
         tabPanel('zebrafish STITCH',
@@ -164,6 +171,31 @@ server <- function(input, output, session) {
                    nights=c(2,3),
                    days=c(2,3)
                  )
+                 
+                 
+                 ### prepare fingerprint plot ###
+                 ggfgp <- gglegacyFingerprint(
+                   lFgp=fgp,
+                   onlyGrp=NA,
+                   colours=NA,
+                   legendOrNo=TRUE,
+                   ynameOrNo=TRUE,
+                   ytextOrNo=TRUE,
+                   xtextOrNo=TRUE,
+                   nightBgOrNo=TRUE,
+                   ymin=-3,
+                   ymax=3,
+                   exportOrNo=FALSE,
+                   exportPath=NA,
+                   width=NA,
+                   height=NA
+                 )
+                 # save fingerprint plot
+                 # this is a bit odd when testing locally because it actually saves the plot as pdf on drive
+                 # but when app is deployed online, plot will be saved to server, so user will not see that
+                 # then in downloadHandler we copy the file
+                 # so really the user is saying "give me a copy of that fingerprint plot saved on the server"
+                 ggsave('fingerprint.pdf', plot=ggfgp)
                  
                  
                  ### rank drugs vs fingerprint ###
@@ -229,45 +261,58 @@ server <- function(input, output, session) {
                  
                  ### fingerprint plot ###
                  output$ggfgp <-  renderPlot({
-                   
-                   ggfgp <- gglegacyFingerprint(
-                     lFgp=fgp,
-                     onlyGrp=NA,
-                     colours=NA,
-                     legendOrNo=TRUE,
-                     ynameOrNo=TRUE,
-                     ytextOrNo=TRUE,
-                     xtextOrNo=TRUE,
-                     nightBgOrNo=TRUE,
-                     ymin=-3,
-                     ymax=3,
-                     exportOrNo=FALSE,
-                     exportPath=NA,
-                     width=NA,
-                     height=NA
-                     )
-                   
                    return(ggfgp) # this becomes 'ggfgp' in ui
-                   
                  })
                  
+                 # set-up the download
+                 output$ggfgp_dl <- downloadHandler(
+                   filename=function() {
+                     paste('fingerprint.pdf', sep='')
+                   },
+                   content=function(file) {
+                     file.copy('fingerprint.pdf', file)
+                   }
+                 )
                  
-                 ### top X drugs ###
+                 
+                 # output$ggfgp_dl <- downloadHandler(
+                 #   filename ='fingerprint.png',
+                 #   content = function(file) {
+                 #                                          png(ggfgp)
+                 #                                          dev.off()
+                 #                                        },
+                 #                                        contentType = 'image/png')
+                 
+                 
+                 ### ranked list of drugs ###
+                 # display top X drugs
                  output$topdr <- renderTable({ # topdr is for top X drugs
                    return(vdbr[1:20,]) # this becomes 'topdr' in ui
                  })
                  
-                 ### bottom X drugs ###
+                 # display bottom X drugs
                  output$botdr <- renderTable({ # botdr is for bottom X drugs
                    return(vdbr[(nrow(vdbr)-19):nrow(vdbr),]) # this becomes 'topdr' in ui
                  })
                  
+                 # set-up the download
+                 output$vdbr_dl <- downloadHandler( # download TTD targets
+                   filename=function() {
+                     'drugsRanked.csv'
+                   },
+                   content=function(file) {
+                     vroom::vroom_write(vdbr, file, delim=',') # delim = ',' so writes CSV
+                   }
+                 )
+                 
                  
                  ### TTD indications ###
+                 # set-up the table
                  output$ind <- renderTable({ # indications statistics report
                    return(ind) # this becomes 'ind' in ui
                  })
                  
+                 # set-up the download
                  output$ind_dl <- downloadHandler( # download indications
                    filename=function() {
                      'indications.csv'
@@ -278,14 +323,36 @@ server <- function(input, output, session) {
                  )
                  
                  ### TTD targets ###
+                 # set-up the table
                  output$tar <- renderTable({ # TTD targets statistics report
                    return(tar) # this becomes 'tar' in ui
                  })
                  
+                 # set-up the download
+                 output$tar_dl <- downloadHandler( # download TTD targets
+                   filename=function() {
+                     'TTDtargets.csv'
+                   },
+                   content=function(file) {
+                     vroom::vroom_write(tar, file, delim=',') # delim = ',' so writes CSV
+                   }
+                 )
+                 
                  ### KEGG pathways ###
+                 # set-up the table
                  output$keg <- renderTable({ # KEGG pathways statistics report
                    return(keg) # this becomes 'keg' in ui
                  })
+                 
+                 # set-up the download
+                 output$keg_dl <- downloadHandler( # download KEGG
+                   filename=function() {
+                     'KEGGpathways.csv'
+                   },
+                   content=function(file) {
+                     vroom::vroom_write(keg, file, delim=',') # delim = ',' so writes CSV
+                   }
+                 )
   })
   
 }
