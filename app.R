@@ -1,13 +1,3 @@
-# hey i am on other branch!
-
-
-
-#### test2, I am on branch fromRAW
-# so this should disappear when going back to branch main
-
-#### HELLO I AM ON NEW BRANCH
-
-
 #####################################################
 # ~ Shiny app for predictive pharmacology ~
 #
