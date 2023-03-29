@@ -38,7 +38,13 @@ Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drug
 ndraws <- 2
 alphaThr <- 0.05
 
-# options(shiny.maxRequestSize = 30*1024^2) # maximum upload set to 30 Mb
+# set maximum upload to 30 Gb
+options(shiny.maxRequestSize = 3000*1024^2)
+# ! will face some issues when deployed, likely need Basic plan at 440$/year
+# https://support.posit.co/hc/en-us/articles/219449487--How-much-data-can-I-upload-to-shinyapps-io-
+
+# seems fairly easy to save uploaded data to Dropbox, if useful at some point
+# https://www.r-bloggers.com/2015/07/persistent-data-storage-in-shiny-apps/
 
 
 # ui ----------------------------------------------------------------------
