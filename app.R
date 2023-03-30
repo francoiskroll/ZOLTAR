@@ -1,5 +1,3 @@
-## new branch fromRAW
-
 #####################################################
 # ~ Shiny app for predictive pharmacology ~
 #
