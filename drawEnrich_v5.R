@@ -341,6 +341,12 @@ rankDrugDb <- function(legacyFgp,
   ### import drugDb
   ddb <- read.csv(dbPath)
   
+  # 30/03/2023, decided to delete parameters daymean_averageWaking & nightmean_averageWaking
+  # can read rationale in paramsFromMid.R
+  # will delete them here so we do not alter the data
+  ddb$daymean_averageWaking <- NULL
+  ddb$nightmean_averageWaking <- NULL
+  
   # detect column where Z-scores start
   zcol <- min(which(startsWith(colnames(ddb), 'night')))
   

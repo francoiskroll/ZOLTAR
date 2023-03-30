@@ -16,15 +16,195 @@
 # will then compare carefully we have the same values
 
 
-# function diff2(...) -----------------------------------------------------
-# I want to 'correct' R's diff function
-# e.g. diff(c(FALSE, FALSE, TRUE, TRUE)) gives 0 1 0
-# so if look for first TRUE using diff, will give #2
-# when actually it is #3
-# I think it should return NA 0 1 0, then positions will match original vector
-diff2 <- function(vector) {
+# packages ----------------------------------------------------------------
+
+library(dplyr)
+library(tibble)
+library(tidyr)
+
+
+
+# function legacyFingerprintMid(...) --------------------------------------
+
+# function legacyFingerprint was calculating fingerprint from .mat file
+# now, takes _middur.csv as input, hence 'Mid'
+
+# this will essentially run the entire pipeline of paramsFromMid
+# i.e. takes middur file, calculate parameters and assign genotypes, calculate fingerprint
+
+# note, for a given parameter, I think a better approach to calculating Z-scores is to calculate Z-score for each larva separately
+# then do mean +/- SEM of those Z-scores, which allows to have an error bar
+# I checked in Clustering 2.m: Z-scores were not calculated this way
+# so I am assuming Z-scores in the drug database were also calculated like this
+# so will stick to this approach here
+
+# note, original fingerprint also have averageWaking daymean & averageWaking nightmean
+# averageWaking daymean is the mean of averageWaking day0 (incomplete), day1, day2, day3 (incomplete)
+# averageWaking nightmean is the mean of averageWaking night0, night1, night2
+# I do not think these parameters are a good idea because they depend on when the experiment is started/stopped (for day)
+# I also do not know what they add that is not captured by averageWaking day1/day2 and night1/night2
+# Also, why averageWaking only? Why not the same big average for sleep etc?
+# I decided not to calculate them here
+# will need to delete them from the drug fingerprint too
+
+# for all the other parameters, I get almost exactly the same Z-scores as SCRAP.m, checked for experiment 220531_14
+# I also compared fingerprint plots (gglegacyFingerprint from middur or from mat), I cannot see a slightest point moving
+# (except from the day/nightmean_averageWaking disappearing)
+legacyFingerprintMid <- function(mid,
+                                 genopath,
+                                 treGrp,
+                                 conGrp,
+                                 nights=c('night1','night2'),
+                                 days=c('day1','day2')) {
   
-  return(c(NA, diff(vector)))
+  ## calculate parameters
+  # we get a list, where each slot is one parameter table
+  paral <- calculateParameters(mid=mid, genopath=genopath)
+  
+  # check that treGrp & conGrp are correct
+  if(! treGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: treGrp', treGrp, 'was not found in data. \n')
+  if(! conGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: conGrp', conGrp, 'was not found in data. \n')
+  
+  ## for each parameter, calculate
+  # mean of controls
+  # sd of controls
+  # Z-score for each larva
+  # mean, sd, sem of those Z-scores
+  zsl <- lapply(paral, function(pa) {
+    
+    # loop through the windows we need to calculate
+    sapply(c(nights, days), function(win) {
+      # win is e.g. night1 or day2
+      
+      # for each win,
+      # calculate the mean of control datapoints
+      meanCon <- mean( pa[(which(pa$grp==conGrp)), win] , na.rm=TRUE)
+      
+      # calculate the sd of control datapoints
+      sdCon <- sd( pa[(which(pa$grp==conGrp)), win] , na.rm=TRUE)
+      
+      # calculate the mean of treatment datapoints
+      meanTre <- mean( pa[(which(pa$grp==treGrp)), win] , na.rm=TRUE)
+      
+      # calculate Z-score
+      zsco <- (meanTre - meanCon) / sdCon
+      
+    })
+  })
+  # now we have a list zsl
+  # each slot is a small row: Z-score for night1, Z-score for night2, Z-score for day1, Z-score for day2
+  # turn this into a clean dataframe
+  zs <- as.data.frame(do.call(rbind, zsl))
+  zs <- cbind(parameter=row.names(zs), zs)
+  row.names(zs) <- NULL
+  
+  # pivot longer so that we have just one Z-score column
+  zs <- zs %>%
+    pivot_longer(-parameter,
+                 names_to='win',
+                 values_to='zsco')
+  
+  ### here we need to add parameters total day waking and total night waking
+  # (I do not know why this parameter is there, I do not think that doing a quick operation on two existing parameters counts as a new parameter)
+  # (but it is in the original fingerprint, so here it is)
+  # from what I understand, it is, for each fish, the sum day1 waking activity + day2 waking activity
+  # we did not calculate it in calculateParameters because it is not defined for *one* day or night
+  
+  # now just add column uparam
+  zs <- zs %>%
+    mutate(uparam=paste(win, parameter, sep='_'), .before=1)
+  zs <- as.data.frame(zs)
+  
+  # and we essentially have the same format as the original legacyFingerprint (from .mat file)
+  return(zs)
+}
+
+
+# function calculateParameters(...) ---------------------------------------
+
+# calculates parameter for each well and each time window
+
+calculateParameters <- function(mid,
+                                genopath) {
+  
+  # parameters are
+  allparameters <- c('sleep',
+                     'sleepBout',
+                     'sleepLength',
+                     'sleepLatency',
+                     'averageActivity',
+                     'averageWaking')
+  
+  
+  ### split by day/night
+  dn <- splitMidbyDayNight(mid)
+  
+  # how many time columns do we have?
+  timecols <- which(grepl("^f+[[:digit:]]", colnames(dn[[1]])))[1] - 1
+  # above finds first column which is called fX (usually f1 or f97)
+  
+  ### for each parameter, for each window, for each well, calculate the parameter
+  
+  # loop through parameters
+  paral <- lapply(allparameters, function(param) {
+    
+    # which is the function we should be using for this parameter?
+    # it will be called param_onefish, e.g. sleep_onefish
+    fun2use <- paste0(param, '_onefish')
+    # we now have the name, here is to link it to the actual function
+    onefishFun <- match.fun(fun2use)
+    
+    # loop through windows
+    pal <- lapply(1:length(dn), function(win) {
+      
+      # loop through wells
+      sapply( (timecols+1):ncol(dn[[win]]), function(w) { # w is for well
+        
+        # make sure the middur values are just a plain vector
+        mc <- as.numeric(dn[[win]][,w])
+        # run the _onefish function on it
+        onefishFun(mc=mc)
+        
+      } )
+      
+    })
+    # here, after lapply window, we have a list for that parameter
+    # where each slot is parameter datapoints (typically 96 of them) for that window
+    # create a cleaner dataframe
+    # put day/night as columns, i.e. night0 / day1 / ...
+    pa <- as.data.frame(do.call(cbind, pal))
+    # add day/night as column names
+    colnames(pa) <- names(dn)
+    # add parameter name
+    # add fish number
+    pa <- pa %>%
+      mutate(fish=colnames(dn[[1]])[(timecols+1):ncol(dn[[1]])], .before=1) %>%
+      mutate(parameter=param, .before=1)
+    
+    ### import genotype file and add grp column
+    # import genotype file
+    geno <- importGenotype(genopath=genopath)
+    # make sure every well is mentioned in genotype file, adding an 'excluded' column if necessary
+    # need to give box number here (1 or 2)
+    # can guess from the fish IDs
+    # assume boxnum=1, unless first fish ID is f97
+    boxnum <- 1
+    if(pa$fish[1]=='f97') {
+      boxnum <- 2
+    }
+    geno <- fillGenotype(geno=geno, boxnum=boxnum)
+    # add genotype column, using function assignGenotype
+    pa <- pa %>%
+      mutate(grp=assignGenotype(fs=pa$fish, geno=geno), .after='fish')
+  })
+  
+  # here, after lapply parameters, we have a list (paral) where each slot is a parameter table
+  # each parameter table, is columns = day/night; rows = fish
+  # can add names to this list
+  names(paral) <- allparameters
+  
+  # return this list
+  return(paral)
   
 }
 
@@ -106,9 +286,29 @@ sleepBout_onefish <- function(mc) {
 # so add minus 1 here
 # for some reason there is another minus 1, I do not know where from, but just will copy it here
 # (it is consistent for 4 larvae I tried, every time SCRAP.m finds same - 1)
+
+# Note, I think it would be more accurate to report the first sleep bout, *after* the fish was active once
+# so that if the fish is inactive during the transition, we do not report 0
+# but this is not how SCRAP.m is coded, and goal here is to replicate exactly
 sleepLatency_onefish <- function(mc) {
+
+  lat <- which(mc < 0.1)[1] -1 -1
   
-  return( which(mc < 0.1)[1] -1 -1)
+  # exception: if first datapoint is inactive, it seems that SCRAP.m returns 1
+  # in fact, it seems it never returns 0, always 1
+  # copy this
+  if(!is.na(lat) & lat<=0) { # lat may be NA if fish was never asleep during the window (we return NA in that case)
+    lat <- 1
+  }
+  
+  # exception: if fish was never asleep, SCRAP.m returns the last minute of the window
+  # this is objectively inaccurate (the fish never slept, so by definition we cannot report a value)
+  # but well, can only copy what it does here
+  if(is.na(lat)) {
+    lat <- length(mc)
+  }
+  
+  return( lat )
   
 }
 
@@ -131,6 +331,12 @@ sleepLength_onefish <- function(mc) {
   # (as it marks FALSE followed by TRUE)
   mct <- diff2(mcb) # t for transitions
   
+  # ! if no sleep transition whatsoever (can happen in empty wells)
+  # just return NA
+  if( length(which(mct==1))==0 | length(which(mct==-1))==0 ) {
+    return(NA)
+  }
+  
   # make sure we only have complete sleep bouts
   # by complete, I mean which starts and stops during that window
   
@@ -144,6 +350,12 @@ sleepLength_onefish <- function(mc) {
   # record all the STOP, i.e. the minute index at which each sleep bout stopped
   sto <- which(mctc==-1)
   
+  # we should have at least one full sleep bout
+  # otherwise there is no point calculating the parameter
+  if(length(sta)==0 | length(sto)==0) {
+    return(NA)
+  }
+  
   # for each START, there should be a STOP
   if(length(sta) != length(sto)) stop('\t \t \t \t >>> Error sleepLength_onefish: different number of sleep bout STARTs and sleep bout STOPs \n')
   
@@ -152,3 +364,214 @@ sleepLength_onefish <- function(mc) {
   return( mean(sto - sta) )
   
 }
+
+
+# function splitMidbyDayNight(...) ----------------------------------------
+
+# this function splits middur data as a big table, where
+# columns are fish (after a few time columns)
+# rows are minutes
+# into a list where each element is middur data for one day or night
+# analogous to splitFramesbyDayNight in FramebyFrame package
+
+# here, we can rely on zth column (number of hours since 9AM day0)
+# assuming dayduration is 14hrs
+# transitions will happen at 14, 24, 38, etc.
+
+# will assume experiment starts during a day
+splitMidbyDayNight <- function(mid) {
+  
+  dayduration <- 14
+  
+  # sunsets and sunrises times (in number of hours since day0 sunrise at 9AM) for 10 days
+  suns <- c(rbind(seq(dayduration, 720, 24), seq(24, 720, 24)))
+  # typically dayduration = 14
+  # so will go 14, 24, 38, 48 etc.
+  
+  # how many transitions do actually have in the data?
+  # only keep transitions that happened within the experiment
+  # (or in other words, that happened before the end of the middur data)
+  suns <- suns[ which(suns <= max(mid$zhrs)) ]
+  
+  # for each light transition in zth (suns), detect the closest minute
+  # we want the minute just before the transition
+  # e.g. for 24 hrs, we want ~ 23.99
+  # tramin = transition minutes
+  tramin <- sapply(suns, function(sun) {
+    findLightTransitionMinute(Zeitgeberdurations=mid$zhrs,
+                              transitionHour=sun)
+  })
+  
+  # preallocate list dn for day/night
+  # each slot will be middur data for one day or night
+  dn <- vector(mode='list', length=length(tramin)-1)
+  # ! this will skip any day or night that is not full
+  # put appropriate names
+  # will assume started experiment during the day (i.e. between 9AM and 11PM)
+  # so we can simply go day0, night0, day1, night1, etc.
+  dn_nms <- c(rbind(sprintf('night%i', 0:30), sprintf('day%i', 1:31))) # names for a one-month long experiment
+  # ! assumes starts during day; finishes during day
+  # and therefore that day at the start is incomplete and day at the end is incomplete
+  # dn_nms above goes night0, day1, night1, day2, etc.; so easy to exclude night0
+  # typically gives day1 / day2 + night1 / night2 for the standard Rihel lab experimental design
+  
+  # take the first few names according to how many we need
+  names(dn) <- dn_nms[1:length(dn)]
+  
+  # fill the list
+  # for each window, we take from row just after transition until row just before transition
+  # e.g. night0 will be something like: 14.01 hr until 23.99 hr
+  for(w in 1:length(dn)) {
+    dn[[w]] <- mid[ (tramin[w] + 1) : (tramin[w+1]) , ]
+  }
+  
+  # return the list
+  return(dn)
+  
+}
+
+#### function findLightTransitionMinute ####
+# small function to help splitMidbyDayNight above
+# copied from FramebyFrame package findLightTransitionFrame
+
+# Zeitgeberdurations = Zeitgeber durations (i.e. number of hours since day0 9AM), typically a column of middur data
+# transitionHour = transition to look for, usually e.g. 14 or 24 or 38 or 48, etc.
+
+# returns the minute (index) just before the light transition
+# e.g. if looking for first sunset = 14 zth hours
+# may find frame zth = 13.99999 (Case1)
+# in that case it returns that frame
+# or may find frame zth = 14.00001 or frame with exactly zth = 14 (Case2)
+# in that case, assumes this frame is the frame just after the transition and it returns the frame just before
+findLightTransitionMinute <- function(Zeitgeberdurations,
+                                      transitionHour) {
+  
+  tfra <- which.min(abs(Zeitgeberdurations - transitionHour)) # transition frame
+  
+  if (Zeitgeberdurations[tfra] >= transitionHour) { # this is Case2
+    
+    tfra <- tfra - 1
+    
+    # check we are now before the transition
+    if (Zeitgeberdurations[tfra] >= transitionHour)
+      stop('\t \t \t \t >>> Something unexpected: the frame preceding the closest frame to the transition is still after the transition \n')
+    
+    return(tfra)
+    
+  } else {
+    return(tfra)
+  }
+  
+}
+
+
+# genotype utilities ------------------------------------------------------
+
+# calculateParameters prepares a list
+# where each slot is one parameter table
+# we need to add the grp column to this list
+
+# some of these functions are copied from package FramebyFrame
+# but best to keep projects somewhat independent
+
+
+### function importGenotype(...) ###
+# small command to import .txt genotype file
+importGenotype <- function(genopath) {
+  if( substrEnding(genopath, 3) != 'txt') stop('\t \t \t \t >>> Genotype file does not finish by .txt \n')
+  
+  if(!file.exists(genopath)) stop('\t \t \t \t Error: file ', genopath, ' does not exist! \n')
+  
+  geno <- read.delim(genopath, header=TRUE, skip=1, na.strings=c("","NA"))
+  return(geno)
+}
+
+
+### function fillGenotype(...) ###
+# makes sure genotype file contains all fish, adding an 'excluded' grp/column if necessary
+# Note, boxnum is required here as genotype always given 1>>96 regardless of box1 or box2
+fillGenotype <- function(geno,
+                         boxnum=1) {
+  
+  genall <- as.vector(unlist(geno)) # pool all the fish in genotype file
+  genall <- sort(genall[!is.na(genall)]) # remove any NA & sort
+  
+  # check we have a sensical number of fish
+  if (length(genall)==0) stop('\t \t \t \t >>> There is no fish ID in this genotype file. \n')
+  if (length(genall) > 96) stop('\t \t \t \t >>> More than 96 fish IDs in this genotype file, is this right? \n')
+  cat('\t \t \t \t >>> Found N = ', length(genall), 'fish IDs in genotype file \n')
+  
+  # check fish IDs are given as 1 to 96
+  if ( ! identical(unique(genall %in% 1:96), TRUE) ) stop('\t \t \t \t >>> Some fish IDs are not within 1--96. Maybe you gave fish IDs of second box as 97--192? Please change them to 1--96. \n')
+  
+  # check no duplicates in genotype file
+  if(sum(duplicated(genall))!=0) stop('\t \t \t \t >>> Some wells are duplicated in genotype file. \n')
+  
+  # any fish missing from genotype file? if yes -- add them to excluded column in genotype file
+  exclu <- (1:96) [which(! 1:96 %in% genall)] # i.e. which of 1, 2, 3, ..., 96 is not in genotype file
+  
+  if (length(exclu) != 0) {
+    # preallocate excluded column as all NA
+    geno$excluded <- NA
+    # add any excluded fish
+    geno[1:length(exclu), 'excluded'] <- exclu
+    
+    # now all fish should be present in genotype file
+    genall <- as.vector(unlist(geno)) # pool all the wells in genotype file
+    genall <- sort(genall[!is.na(genall)]) # remove any NA & sort
+    
+    # check looks good
+    if( length((1:96) [which(! 1:96 %in% genall)]) != 0 )
+      stop('\t \t \t \t >>> Still some wells missing from genotype file even after adding excluded column \n')
+  }
+  
+  # if second box, add 96 to the all the fish IDs
+  if (boxnum==2) {
+    geno <- geno + 96
+  }
+  
+  # now ready to return
+  return(geno)
+}
+
+
+### function assignGenotype(...) ###
+# assignGenotype takes a vector of fish IDs as input (in the form f1, f2, f3, ...)
+# for each, it looks up its genotype in the genotype file (geno) and returns its genotype
+# eg. f1, f1, f2 >>> scr, scr, ko
+assignGenotype <- function(fs, geno) {
+  sapply(fs,
+         function(f){ # wn = well name
+           colnames(geno)[which(geno==substr(f, 2, 99), arr.ind=TRUE)[2]]
+         })
+}
+# details
+# substr(): strips the f from column names, f1, f2, ... >> 1, 2, ..., so can match vs genotype file
+# which(arr.ind=TRUE): find that well number in the genotype file (arr.ind=TRUE gives row and column coordinate, then [2] takes column number)
+# colnames(geno): get the column name of that element
+# eg. f12 >> look for 12 in genotype file >> it is in column 2 >> column 2 name is SCR
+# any fish which has now grp = NA was not mentioned in genotype file, so it must have been empty or excluded
+
+
+
+# misc functions ----------------------------------------------------------
+
+### function diff2(...) ###
+# I want to 'correct' R's diff function
+# e.g. diff(c(FALSE, FALSE, TRUE, TRUE)) gives 0 1 0
+# so if look for first TRUE using diff, will give #2
+# when actually it is #3
+# I think it should return NA 0 1 0, then positions will match original vector
+diff2 <- function(vector) {
+  
+  return(c(NA, diff(vector)))
+  
+}
+
+### function substrEnding ###
+# take n last characters of a string
+# e.g. substrEnding('210907_12_RAWs.csv', 3) >>> csv
+substrEnding <- function(x, n){ # x = string (or vector of strings); n = last n characters
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+

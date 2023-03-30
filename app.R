@@ -72,29 +72,40 @@ ui <- fluidPage(
     ### sidebar
     sidebarPanel(
       
-    ### .mat input widget
-      fileInput(inputId='mat_drop',
-                label='Select or drop your .mat file',
+      ## middur input widget
+      fileInput(inputId='mid_drop',
+                label='Select or drop your middur.csv file',
                 multiple=TRUE,
-                accept='.mat') ,
+                accept='.csv') ,
       
+      ## genotype input widget
+      fileInput(inputId='geno_drop',
+                label='Select or drop your genotype.txt file',
+                multiple=TRUE,
+                accept='.txt') ,
+      
+      ## treatment group dropdown selection
       selectInput(inputId='treGrp_select',
                   label='Select the treatment group',
                   choices=NULL, # initialise as NULL, we will update based on data given
                   multiple=FALSE) , # can only select one group
       
+      ## control group dropdown selection
       selectInput(inputId='conGrp_select',
                   label='Select the control group',
                   choices=NULL, # initialise as NULL, we will update based on data given
                   multiple=FALSE) , # can only select one group
       
+      ## GO button
       actionButton(inputId='go_button',
                    label='Go')
       
     ),
     
+    ### tabs on the right
     mainPanel(
       tabsetPanel(
+        
         tabPanel('Table',
                  tableOutput('fgp')),
         
@@ -148,38 +159,41 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  #### update the group selection when user drops a .mat file ####
-  # note input$mat_drop is NULL initially
-  observeEvent(input$mat_drop, # means: observe the .mat import widget, if it changes, trigger the code below
+  
+  #### update the group selection when user drops the genotype file ####
+  # note input$geno_drop is NULL initially
+  observeEvent(input$geno_drop, # means: observe the genotype file import widget, if it changes, trigger the code below
                {
-                 # import the .mat file
-                 mat <- R.matlab::readMat(input$mat_drop$datapath)$geno
-                 
-                 # read the group names
-                 grpnms <- unlist(mat[,,1]$name)
+                 # import the genotype file
+                 geno <- importGenotype(input$geno_drop$datapath)
+                 # get the group names from it
+                 grpnms <- colnames(geno)
                  
                  # update the selection of treatment / control group so it lists the groups available in the data
                  updateSelectInput(session, input='treGrp_select',
-                                      choices=grpnms)
+                                   choices=grpnms)
                  updateSelectInput(session, input='conGrp_select',
                                    choices=grpnms)
                })
   
+  
   #### start stuff when user presses Go button ####
   observeEvent(input$go_button,
                {
-                 req(input$mat_drop) # check that mat file is available
-                 
+                 req(input$mid_drop) # check that middur file is available
+                 req(input$geno_drop) # check that genotype file is available
                  
                  ### calculate fingerprint ###
-                 fgp <- legacyFingerprint(
-                   matPath=input$mat_drop$datapath,
-                   conGrp=input$conGrp_select,
-                   treGrp=input$treGrp_select,
-                   nights=c(2,3),
-                   days=c(2,3)
-                 )
                  
+                 # import middur file
+                 mid <- read.csv(input$mid_drop$datapath)
+                 
+                 fgp <- legacyFingerprintMid(mid=mid,
+                                             genopath=input$geno_drop$datapath,
+                                             treGrp=input$treGrp_select,
+                                             conGrp=input$conGrp_select,
+                                             nights=c('night1', 'night2'),
+                                             days=c('day1', 'day2'))
                  
                  ### prepare fingerprint plot ###
                  ggfgp <- gglegacyFingerprint(
@@ -198,81 +212,27 @@ server <- function(input, output, session) {
                    width=NA,
                    height=NA
                  )
-                 # save fingerprint plot
-                 # this is a bit odd when testing locally because it actually saves the plot as pdf on drive
+                 ## save fingerprint plot
+                 # this may appear odd when testing locally because it actually saves the plot as pdf on drive
                  # but when app is deployed online, plot will be saved to server, so user will not see that
                  # then in downloadHandler we copy the file
                  # so really the user is saying "give me a copy of that fingerprint plot saved on the server"
                  ggsave('fingerprint.pdf', plot=ggfgp)
                  
                  
-                 ### rank drugs vs fingerprint ###
-                 withProgress(message='ranking drugs', value=0.3, {
-                   vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
-                                      dbPath='drugDb.csv', 
-                                      metric='cosine')
-                   incProgress(1.0)
-                 })
-                 
-                 
-                 ### calculate enrichment TTD indications ###
-                 withProgress(message='calculating indications', value=0.3, {
-                   ind <- drugEnrichment(vdbr=vdbr,
-                                         namesPath='compounds.csv',
-                                         annotationPath='TTDindications.csv',
-                                         annotation='indications',
-                                         whichRank='rankeq',
-                                         minNex=3,
-                                         ndraws=ndraws,
-                                         alphaThr=alphaThr,
-                                         statsExport=NA)
-                   incProgress(1.0)
-                 })
-                 
-                 
-                 ### calculate enrichment TTD targets ###
-                 withProgress(message='calculating targets', value=0.3, {
-                   tar <- drugEnrichment(vdbr=vdbr,
-                                         namesPath='compounds.csv',
-                                         annotationPath='TTDtargets.csv',
-                                         annotation='TTDtargets',
-                                         whichRank='rankeq',
-                                         minNex=3,
-                                         ndraws=ndraws,
-                                         alphaThr=alphaThr,
-                                         statsExport=NA)
-                   incProgress(1.0)
-                 })
-                 
-                 
-                 ### calculate enrichment KEGG pathways ###
-                 withProgress(message='calculating KEGG pathways', value=0.3, {
-                   keg <- drugEnrichment(vdbr=vdbr,
-                                         namesPath='compounds.csv',
-                                         annotationPath='TTDkegg.csv',
-                                         annotation='KEGG',
-                                         whichRank='rankeq',
-                                         minNex=3,
-                                         ndraws=ndraws,
-                                         alphaThr=alphaThr,
-                                         statsExport=NA)
-                   incProgress(1.0)
-                 })
-
-                 
-                 
-                 ### fingerprint table ###
+                 ### display fingerprint table ###
+                 # will probably delete, it is more useful for debugging
                  output$fgp <- renderTable({
                    return(fgp) # this becomes 'fgp' in ui
                  })
                  
                  
-                 ### fingerprint plot ###
+                 ### display fingerprint plot ###
                  output$ggfgp <-  renderPlot({
                    return(ggfgp) # this becomes 'ggfgp' in ui
                  })
                  
-                 # set-up the download
+                 # set-up the fingerprint plot download
                  output$ggfgp_dl <- downloadHandler(
                    filename=function() {
                      paste('fingerprint.pdf', sep='')
@@ -283,16 +243,23 @@ server <- function(input, output, session) {
                  )
                  
                  
-                 # output$ggfgp_dl <- downloadHandler(
-                 #   filename ='fingerprint.png',
-                 #   content = function(file) {
-                 #                                          png(ggfgp)
-                 #                                          dev.off()
-                 #                                        },
-                 #                                        contentType = 'image/png')
+                 ###############################################################
+                 ### ranked drugs ###
+                 
+                 # note about sections: it is better to go: calculate something / display it
+                 # then calculate everything and display
+                 # this way user sees things appearing while calculations are happening
+                 
+                 ## rank drugs vs fingerprint
+                 withProgress(message='ranking drugs', value=0.3, {
+                   vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
+                                      dbPath='drugDb.csv',
+                                      metric='cosine')
+                   incProgress(1.0)
+                 })
                  
                  
-                 ### ranked list of drugs ###
+                 ## display results
                  # display top X drugs
                  output$topdr <- renderTable({ # topdr is for top X drugs
                    return(vdbr[1:20,]) # this becomes 'topdr' in ui
@@ -314,7 +281,24 @@ server <- function(input, output, session) {
                  )
                  
                  
+                 ###############################################################
                  ### TTD indications ###
+                 
+                 ## calculate enrichment TTD indications
+                 withProgress(message='calculating indications', value=0.3, {
+                   ind <- drugEnrichment(vdbr=vdbr,
+                                         namesPath='compounds.csv',
+                                         annotationPath='TTDindications.csv',
+                                         annotation='indications',
+                                         whichRank='rankeq',
+                                         minNex=3,
+                                         ndraws=ndraws,
+                                         alphaThr=alphaThr,
+                                         statsExport=NA)
+                   incProgress(1.0)
+                 })
+                 
+                 ## display results
                  # set-up the table
                  output$ind <- renderTable({ # indications statistics report
                    return(ind) # this becomes 'ind' in ui
@@ -330,7 +314,25 @@ server <- function(input, output, session) {
                    }
                  )
                  
+                 
+                 ###############################################################
                  ### TTD targets ###
+                 
+                 ## calculate enrichment TTD targets
+                 withProgress(message='calculating targets', value=0.3, {
+                   tar <- drugEnrichment(vdbr=vdbr,
+                                         namesPath='compounds.csv',
+                                         annotationPath='TTDtargets.csv',
+                                         annotation='TTDtargets',
+                                         whichRank='rankeq',
+                                         minNex=3,
+                                         ndraws=ndraws,
+                                         alphaThr=alphaThr,
+                                         statsExport=NA)
+                   incProgress(1.0)
+                 })
+                 
+                 ## display results
                  # set-up the table
                  output$tar <- renderTable({ # TTD targets statistics report
                    return(tar) # this becomes 'tar' in ui
@@ -346,7 +348,25 @@ server <- function(input, output, session) {
                    }
                  )
                  
+                 
+                 ###############################################################
                  ### KEGG pathways ###
+                 
+                 ## calculate enrichment KEGG pathways
+                 withProgress(message='calculating KEGG pathways', value=0.3, {
+                   keg <- drugEnrichment(vdbr=vdbr,
+                                         namesPath='compounds.csv',
+                                         annotationPath='TTDkegg.csv',
+                                         annotation='KEGG',
+                                         whichRank='rankeq',
+                                         minNex=3,
+                                         ndraws=ndraws,
+                                         alphaThr=alphaThr,
+                                         statsExport=NA)
+                   incProgress(1.0)
+                 })
+                 
+                 ## display results
                  # set-up the table
                  output$keg <- renderTable({ # KEGG pathways statistics report
                    return(keg) # this becomes 'keg' in ui
@@ -361,6 +381,9 @@ server <- function(input, output, session) {
                      vroom::vroom_write(keg, file, delim=',') # delim = ',' so writes CSV
                    }
                  )
+                 
+                 ###############################################################
+
   })
   
 }
