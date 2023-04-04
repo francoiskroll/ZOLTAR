@@ -7,10 +7,6 @@
 # francois@kroll.be
 #####################################################
 
-# todo
-# click on row to make plot appear
-# https://stackoverflow.com/questions/71212121/r-shiny-click-on-table-field
-
 
 # packages ----------------------------------------------------------------
 
@@ -39,6 +35,7 @@ Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drug
 
 ndraws <- 2
 alphaThr <- 0.2
+showNdrugs <- 100
 
 # set maximum upload to 30 Gb
 options(shiny.maxRequestSize = 3000*1024^2)
@@ -116,13 +113,18 @@ ui <- fluidPage(
                  downloadButton('ggfgp_dl', 'download pdf'),
                  plotOutput('ggfgp')),
         
+        # tabPanel('Drugs ranked',
+        #          p('Drugs are ranked by decreasing cosine.'),
+        #          downloadButton('vdbr_dl', 'download'),
+        #          h3(paste('Top', showNdrugs)),
+        #          tableOutput('topdr'), # topdr is for top X drugs
+        #          h3(paste('Bottom', showNdrugs)),
+        #          tableOutput('botdr')), # botdr is for bottom X drugs
+        
         tabPanel('Drugs ranked',
-                 p('Drugs are ranked by decreasing cosine.'),
+                 p('Click on Cosine column to rank by increasing or decreasing'),
                  downloadButton('vdbr_dl', 'download'),
-                 h3('Top 20'),
-                 tableOutput('topdr'), # topdr is for top X drugs
-                 h3('Bottom 20'),
-                 tableOutput('botdr')), # botdr is for bottom X drugs
+                 DTOutput('vdbr_dis')),
         
         tabPanel('Indications',
                  p('Source: Therapeutic Target Database'),
@@ -274,15 +276,20 @@ server <- function(input, output, session) {
                  
                  
                  ## display results
-                 # display top X drugs
-                 output$topdr <- renderTable({ # topdr is for top X drugs
-                   return(vdbr_dis[1:20,]) # this becomes 'topdr' in ui
-                 })
                  
-                 # display bottom X drugs
-                 output$botdr <- renderTable({ # botdr is for bottom X drugs
-                   return(vdbr_dis[(nrow(vdbr_dis)-19):nrow(vdbr_dis),]) # this becomes 'topdr' in ui
-                 })
+                 # # display top X drugs
+                 # output$topdr <- renderTable({ # topdr is for top X drugs
+                 #   return(vdbr_dis[1:showNdrugs,]) # this becomes 'topdr' in ui
+                 # })
+                 # 
+                 # # display bottom X drugs
+                 # output$botdr <- renderTable({ # botdr is for bottom X drugs
+                 #   return(vdbr_dis[(nrow(vdbr_dis)-(showNdrugs-1)):nrow(vdbr_dis),]) # this becomes 'topdr' in ui
+                 # })
+                 
+                 output$vdbr_dis <- renderDT(vdbr_dis,
+                                             selection=list(mode='single', target='row'),
+                                             rownames=FALSE)
                  
                  # set-up the download
                  output$vdbr_dl <- downloadHandler( # download TTD targets
@@ -321,7 +328,8 @@ server <- function(input, output, session) {
                  ## display results
                  # set-up the table
                  output$ind_dis <- renderDT(ind_dis,
-                                             selection=list(mode='single', target='row'))
+                                            selection=list(mode='single', target='row'),
+                                            rownames=FALSE)
                  # this becomes 'ind_dis' in ui
                  
                  # set-up the download
@@ -360,7 +368,8 @@ server <- function(input, output, session) {
                  
                  # TTD targets statistics report
                  output$ttar_dis <- renderDT(ttar_dis,
-                                            selection=list(mode='single', target='row'))
+                                            selection=list(mode='single', target='row'),
+                                            rownames=FALSE)
                  # this becomes 'tar_dis' in ui
                  
                  # set-up the download
@@ -400,7 +409,8 @@ server <- function(input, output, session) {
                  ## display results
                  # set-up the table
                  output$keg_dis <- renderDT(keg_dis, # KEGG pathways statistics report
-                                            selection=list(mode='single', target='row'))
+                                            selection=list(mode='single', target='row'),
+                                            rownames=FALSE)
                  # this becomes 'keg_dis' in ui
                  
                  # set-up the download
@@ -426,8 +436,6 @@ server <- function(input, output, session) {
     
     # get the index of the selected row
     clickrow <- input$ind_dis_rows_selected
-    
-    print(clickrow)
     
     # prepare the barcode plot
     ggBc <- ggBarcode(vdbr=vdbr,

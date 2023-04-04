@@ -32,6 +32,12 @@ cleanDrugsRanked <- function(vdbr) {
   ## remove cor column
   vdbr$cor <- NULL
   
+  ## round cos column
+  vdbr$cos <- round(vdbr$cos, digits=2)
+  
+  ## round rankeq column
+  vdbr$rankeq <- round(vdbr$rankeq, digits=2)
+  
   ## re-arrange columns
   vdbr <- vdbr[, c('cos', 'name', 'cleanm', 'cid', 'tid', 'ranks', 'rankeq', 'MolecularWeight', 'inSmall', 'structCluster')]
   
@@ -59,6 +65,18 @@ cleanIndications <- function(ind) {
   ind$ndraws <- as.integer(ind$ndraws)
   ind$nhigher <- as.integer(ind$nhigher)
   
+  # round some columns
+  print('sumRanks')
+  ind$sumRanks <- round(ind$sumRanks, digits=2)
+  print('bestPos')
+  ind$bestPos <- round(ind$bestPos, digits=2)
+  print('sumRanksFracPos')
+  ind$sumRanksFracPos <- round(ind$sumRanksFracPos, digits=2)
+  print('ksD')
+  ind$ksD <- round(ind$ksD, digits=2)
+  print('kspval')
+  ind$kspval <- round(ind$kspval, digits=2)
+  
   ## re-name columns
   colnames(ind) <- c('Indication', 'N examples', 'Sum of ranks', 'Best possible sum of ranks', 'Fraction of best possible', 'N draws', 'N higher',
                      'pval', 'Bon. sign.', 'Ben. sign.', 'KS D', 'KS pval', 'KS Bon. sign.', 'KS Ben. sign.')
@@ -82,6 +100,12 @@ cleanTTDtargets <- function(tar) {
   # make sure ndraws & nhigher columns are displayed as an integer
   tar$ndraws <- as.integer(tar$ndraws)
   tar$nhigher <- as.integer(tar$nhigher)
+
+  tar$sumRanks <- round(tar$sumRanks, digits=2)
+  tar$bestPos <- round(tar$bestPos, digits=2)
+  tar$sumRanksFracPos <- round(tar$sumRanksFracPos, digits=2)
+  tar$ksD <- round(tar$ksD, digits=2)
+  tar$kspval <- round(tar$kspval, digits=2)
   
   # re-arrange columns
   tar <- tar[, c('annotation', 'TARGNAME', 'GENENAME', 'UNIPROID', 'BIOCLASS', 'TARGTYPE',
@@ -113,6 +137,12 @@ cleanKEGG <- function(keg) {
   # make sure ndraws & nhigher columns are displayed as an integer
   keg$ndraws <- as.integer(keg$ndraws)
   keg$nhigher <- as.integer(keg$nhigher)
+  
+  keg$sumRanks <- round(keg$sumRanks, digits=2)
+  keg$bestPos <- round(keg$bestPos, digits=2)
+  keg$sumRanksFracPos <- round(keg$sumRanksFracPos, digits=2)
+  keg$ksD <- round(keg$ksD, digits=2)
+  keg$kspval <- round(keg$kspval, digits=2)
   
   ## re-name columns
   colnames(keg) <- c('ID', 'KEGG pathway', 'N examples', 'Sum of ranks', 'Best possible sum of ranks', 'Fraction of best possible',
