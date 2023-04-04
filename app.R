@@ -17,6 +17,8 @@
 library(shiny)
 library(tidyr)
 library(ggplot2)
+library(bslib)
+library(DT)
 
 
 
@@ -27,6 +29,7 @@ source('gglegacyFingerprint.R')
 source('drawEnrich_v5.R')
 source('paramsFromMid.R')
 source('cleanTables.R')
+source('ggEnrich.R')
 
 
 # settings ----------------------------------------------------------------
@@ -34,7 +37,7 @@ source('cleanTables.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 10
+ndraws <- 2
 alphaThr <- 0.2
 
 # set maximum upload to 30 Gb
@@ -55,7 +58,7 @@ ui <- fluidPage(
   #theme=bslib::bs_theme(bootswatch='sandstone'),
   #theme=bslib::bs_theme(bootswatch='united'), # I quite like it but maybe the font is too childish
   # theme=bslib::bs_theme(bootswatch='simplex'),
-   
+  
   # can also set theme manually
   # theme=bslib::bs_theme(
   #   base_font='Rubik'
@@ -124,17 +127,17 @@ ui <- fluidPage(
         tabPanel('Indications',
                  p('Source: Therapeutic Target Database'),
                  downloadButton('ind_dl', 'download'),
-                 tableOutput('ind_dis')) ,
+                 DTOutput('ind_dis')) ,
         
         tabPanel('Targets',
                  p('Source: Therapeutic Target Database'),
-                 downloadButton('tar_dl', 'download'),
-                 tableOutput('tar_dis')) ,
+                 downloadButton('ttar_dl', 'download'),
+                 DTOutput('ttar_dis')) ,
         
         tabPanel('KEGG pathways',
                  p('Source: Therapeutic Target Database'),
                  downloadButton('keg_dl', 'download'),
-                 tableOutput('keg_dis')) ,
+                 DTOutput('keg_dis')) ,
         
         # 04/04/2023 switching off STITCH for now, needs a bit more work
         # tabPanel('zebrafish STITCH',
@@ -148,7 +151,10 @@ ui <- fluidPage(
       )
     )
     
-  )
+  ),
+  
+  ### 
+  # tags$div(id='plot_modal')
 )
 
 
@@ -160,7 +166,6 @@ ui <- fluidPage(
 # it seems like using a Progress object could make it more precise but requires more work
 
 server <- function(input, output, session) {
-  
   
   #### update the group selection when user drops the genotype file ####
   # note input$geno_drop is NULL initially
@@ -256,9 +261,10 @@ server <- function(input, output, session) {
                  
                  ## rank drugs vs fingerprint
                  withProgress(message='ranking drugs', value=0.3, {
-                   vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
-                                      dbPath='drugDb.csv',
-                                      metric='cosine')
+                   vdbr <<- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
+                                       dbPath='drugDb.csv',
+                                       metric='cosine')
+                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
                    
                    ## prepare the display version of the table
                    vdbr_dis <- cleanDrugsRanked(vdbr)
@@ -295,7 +301,7 @@ server <- function(input, output, session) {
                  
                  ## calculate enrichment TTD indications
                  withProgress(message='calculating indications', value=0.3, {
-                   ind <- drugEnrichment(vdbr=vdbr,
+                   ind <<- drugEnrichment(vdbr=vdbr,
                                          namesPath='compounds.csv',
                                          annotationPath='TTDindications.csv',
                                          annotation='indications',
@@ -304,6 +310,7 @@ server <- function(input, output, session) {
                                          ndraws=ndraws,
                                          alphaThr=alphaThr,
                                          statsExport=NA)
+                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
                    
                    ## prepare display version
                    ind_dis <- cleanIndications(ind)
@@ -313,9 +320,9 @@ server <- function(input, output, session) {
                  
                  ## display results
                  # set-up the table
-                 output$ind_dis <- renderTable({ # indications statistics report
-                   return(ind_dis) # this becomes 'ind_dis' in ui
-                 })
+                 output$ind_dis <- renderDT(ind_dis,
+                                             selection=list(mode='single', target='row'))
+                 # this becomes 'ind_dis' in ui
                  
                  # set-up the download
                  output$ind_dl <- downloadHandler( # download indications
@@ -334,35 +341,35 @@ server <- function(input, output, session) {
                  
                  ## calculate enrichment TTD targets
                  withProgress(message='calculating targets', value=0.3, {
-                   tar <- drugEnrichment(vdbr=vdbr,
-                                         namesPath='compounds.csv',
-                                         annotationPath='TTDtargets.csv',
-                                         annotation='TTDtargets',
-                                         whichRank='rankeq',
-                                         minNex=3,
-                                         ndraws=ndraws,
-                                         alphaThr=alphaThr,
-                                         statsExport=NA)
+                   ttar <<- drugEnrichment(vdbr=vdbr,
+                                           namesPath='compounds.csv',
+                                           annotationPath='TTDtargets.csv',
+                                           annotation='TTDtargets',
+                                           whichRank='rankeq',
+                                           minNex=3,
+                                           ndraws=ndraws,
+                                           alphaThr=alphaThr,
+                                           statsExport=NA)
+                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
                    
                    ## prepare the display version
-                   tar_dis <- cleanTTDtargets(tar)
+                   ttar_dis <- cleanTTDtargets(ttar)
                    
                    incProgress(1.0)
                  })
                  
-                 ## display results
-                 # set-up the table
-                 output$tar_dis <- renderTable({ # TTD targets statistics report
-                   return(tar_dis) # this becomes 'tar' in ui
-                 })
+                 # TTD targets statistics report
+                 output$ttar_dis <- renderDT(ttar_dis,
+                                            selection=list(mode='single', target='row'))
+                 # this becomes 'tar_dis' in ui
                  
                  # set-up the download
-                 output$tar_dl <- downloadHandler( # download TTD targets
+                 output$ttar_dl <- downloadHandler( # download TTD targets
                    filename=function() {
                      'TTDtargets.csv'
                    },
                    content=function(file) {
-                     vroom::vroom_write(tar, file, delim=',') # delim = ',' so writes CSV
+                     vroom::vroom_write(ttar, file, delim=',') # delim = ',' so writes CSV
                      # Note, we download the full table, not the display version
                    }
                  )
@@ -373,7 +380,7 @@ server <- function(input, output, session) {
                  
                  ## calculate enrichment KEGG pathways
                  withProgress(message='calculating KEGG pathways', value=0.3, {
-                   keg <- drugEnrichment(vdbr=vdbr,
+                   keg <<- drugEnrichment(vdbr=vdbr,
                                          namesPath='compounds.csv',
                                          annotationPath='TTDkegg.csv',
                                          annotation='KEGG',
@@ -382,6 +389,7 @@ server <- function(input, output, session) {
                                          ndraws=ndraws,
                                          alphaThr=alphaThr,
                                          statsExport=NA)
+                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
                    
                    ## prepare display version
                    keg_dis <- cleanKEGG(keg)
@@ -391,9 +399,9 @@ server <- function(input, output, session) {
                  
                  ## display results
                  # set-up the table
-                 output$keg_dis <- renderTable({ # KEGG pathways statistics report
-                   return(keg_dis) # this becomes 'keg' in ui
-                 })
+                 output$keg_dis <- renderDT(keg_dis, # KEGG pathways statistics report
+                                            selection=list(mode='single', target='row'))
+                 # this becomes 'keg_dis' in ui
                  
                  # set-up the download
                  output$keg_dl <- downloadHandler( # download KEGG
@@ -407,6 +415,131 @@ server <- function(input, output, session) {
                  )
                  
                  ###############################################################
+
+  })
+  
+  
+  ###############################################################
+  ### clickable Indications table to reveal barcode plot ###
+  observeEvent(input$ind_dis_rows_selected, {
+    req(input$ind_dis_rows_selected)
+    
+    # get the index of the selected row
+    clickrow <- input$ind_dis_rows_selected
+    
+    print(clickrow)
+    
+    # prepare the barcode plot
+    ggBc <- ggBarcode(vdbr=vdbr,
+                      namesPath='compounds.csv',
+                      annotationPath='TTDindications.csv',
+                      annotation='indications',
+                      testAnnotation=ind[clickrow , 'annotation'],
+                      minScore=NA,
+                      barwidth1=2,
+                      barwidth2=25,
+                      exportPath=NA,
+                      width=NA,
+                      height=NA)
+    
+    modal <- modalDialog(
+      title = 'Barcode plot' ,
+      
+      paste(ind[clickrow, 'annotation']) , 
+      
+      plotOutput( 'ggBc' ) ,
+      
+      easyClose=TRUE,
+      footer=modalButton('Close')
+    )
+    
+    showModal(modal)
+    
+    output$ggBc <- renderPlot({
+      return(ggBc)
+    })
+    
+  })
+  
+  
+  ###############################################################
+  ### clickable TTD targets table to reveal barcode plot ###
+  observeEvent(input$ttar_dis_rows_selected, {
+    req(input$ttar_dis_rows_selected)
+    
+    # get the index of the selected row
+    clickrow <- input$ttar_dis_rows_selected
+    
+    # prepare the barcode plot
+    ggBc <- ggBarcode(vdbr=vdbr,
+                      namesPath='compounds.csv',
+                      annotationPath='TTDtargets.csv',
+                      annotation='TTDtargets',
+                      testAnnotation=ttar[clickrow , 'annotation'],
+                      minScore=NA,
+                      barwidth1=2,
+                      barwidth2=25,
+                      exportPath=NA,
+                      width=NA,
+                      height=NA)
+    
+    modal <- modalDialog(
+      title = 'Barcode plot' ,
+      
+      paste(ttar[clickrow, 'TARGNAME']) , 
+      
+      plotOutput( 'ggBc' ) ,
+      
+      easyClose=TRUE,
+      footer=modalButton('Close')
+    )
+    
+    showModal(modal)
+    
+    output$ggBc <- renderPlot({
+      return(ggBc)
+    })
+    
+  })
+  
+  
+  ###############################################################
+  ### clickable KEGG pathways table to reveal barcode plot ###
+  observeEvent(input$keg_dis_rows_selected, {
+    req(input$keg_dis_rows_selected)
+    
+    # get the index of the selected row
+    clickrow <- input$keg_dis_rows_selected
+    
+    # prepare the barcode plot
+    ggBc <- ggBarcode(vdbr=vdbr,
+                      namesPath='compounds.csv',
+                      annotationPath='TTDkegg.csv',
+                      annotation='KEGG',
+                      testAnnotation=keg[clickrow , 'annotation'],
+                      minScore=NA,
+                      barwidth1=2,
+                      barwidth2=25,
+                      exportPath=NA,
+                      width=NA,
+                      height=NA)
+    
+    modal <- modalDialog(
+      title = 'Barcode plot' ,
+      
+      paste(keg[clickrow, 'keggname']) , 
+      
+      plotOutput( 'ggBc' ) ,
+      
+      easyClose=TRUE,
+      footer=modalButton('Close')
+    )
+
+    showModal(modal)
+    
+    output$ggBc <- renderPlot({
+      return(ggBc)
+    })
 
   })
   
