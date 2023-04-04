@@ -25,7 +25,8 @@ library(ggplot2)
 source('legacyFingerprint.R')
 source('gglegacyFingerprint.R')
 source('drawEnrich_v5.R')
-
+source('paramsFromMid.R')
+source('cleanTables.R')
 
 
 # settings ----------------------------------------------------------------
@@ -33,11 +34,12 @@ source('drawEnrich_v5.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 2
-alphaThr <- 0.05
+ndraws <- 10
+alphaThr <- 0.2
 
 # set maximum upload to 30 Gb
 options(shiny.maxRequestSize = 3000*1024^2)
+
 # ! will face some issues when deployed, likely need Basic plan at 440$/year
 # https://support.posit.co/hc/en-us/articles/219449487--How-much-data-can-I-upload-to-shinyapps-io-
 
@@ -51,8 +53,8 @@ options(shiny.maxRequestSize = 3000*1024^2)
 ui <- fluidPage(
   
   #theme=bslib::bs_theme(bootswatch='sandstone'),
-  #theme=bslib::bs_theme(bootswatch='united'), # maybe the font is too childish
-  #theme=bslib::bs_theme(bootswatch='simplex'),
+  #theme=bslib::bs_theme(bootswatch='united'), # I quite like it but maybe the font is too childish
+  # theme=bslib::bs_theme(bootswatch='simplex'),
    
   # can also set theme manually
   # theme=bslib::bs_theme(
@@ -122,25 +124,27 @@ ui <- fluidPage(
         tabPanel('Indications',
                  p('Source: Therapeutic Target Database'),
                  downloadButton('ind_dl', 'download'),
-                 tableOutput('ind')) ,
+                 tableOutput('ind_dis')) ,
         
         tabPanel('Targets',
                  p('Source: Therapeutic Target Database'),
                  downloadButton('tar_dl', 'download'),
-                 tableOutput('tar')) ,
+                 tableOutput('tar_dis')) ,
         
         tabPanel('KEGG pathways',
                  p('Source: Therapeutic Target Database'),
                  downloadButton('keg_dl', 'download'),
-                 tableOutput('keg')) ,
+                 tableOutput('keg_dis')) ,
         
-        tabPanel('zebrafish STITCH',
-                 p('Source: stitch.embl.de'),
-                 tableOutput('zsti')) ,
+        # 04/04/2023 switching off STITCH for now, needs a bit more work
+        # tabPanel('zebrafish STITCH',
+        #          p('Source: stitch.embl.de'),
+        #          tableOutput('zsti')) ,
         
-        tabPanel('human STITCH',
-                 p('Source: stitch.embl.de'),
-                 tableOutput('hsti'))
+        # 04/04/2023 switching off STITCH for now, needs a bit more work
+        # tabPanel('human STITCH',
+        #          p('Source: stitch.embl.de'),
+        #          tableOutput('hsti'))
       )
     )
     
@@ -247,12 +251,18 @@ server <- function(input, output, session) {
                  # note about sections: it is better to go: calculate something / display it
                  # then calculate everything and display
                  # this way user sees things appearing while calculations are happening
+                 # EDIT: that does not seem to work like that, actually
+                 # only displays when done with all calculations, unfortunately
                  
                  ## rank drugs vs fingerprint
                  withProgress(message='ranking drugs', value=0.3, {
                    vdbr <- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
                                       dbPath='drugDb.csv',
                                       metric='cosine')
+                   
+                   ## prepare the display version of the table
+                   vdbr_dis <- cleanDrugsRanked(vdbr)
+                   
                    incProgress(1.0)
                  })
                  
@@ -260,12 +270,12 @@ server <- function(input, output, session) {
                  ## display results
                  # display top X drugs
                  output$topdr <- renderTable({ # topdr is for top X drugs
-                   return(vdbr[1:20,]) # this becomes 'topdr' in ui
+                   return(vdbr_dis[1:20,]) # this becomes 'topdr' in ui
                  })
                  
                  # display bottom X drugs
                  output$botdr <- renderTable({ # botdr is for bottom X drugs
-                   return(vdbr[(nrow(vdbr)-19):nrow(vdbr),]) # this becomes 'topdr' in ui
+                   return(vdbr_dis[(nrow(vdbr_dis)-19):nrow(vdbr_dis),]) # this becomes 'topdr' in ui
                  })
                  
                  # set-up the download
@@ -275,6 +285,7 @@ server <- function(input, output, session) {
                    },
                    content=function(file) {
                      vroom::vroom_write(vdbr, file, delim=',') # delim = ',' so writes CSV
+                     # Note, we download the original vdbr, not the display version
                    }
                  )
                  
@@ -293,13 +304,17 @@ server <- function(input, output, session) {
                                          ndraws=ndraws,
                                          alphaThr=alphaThr,
                                          statsExport=NA)
+                   
+                   ## prepare display version
+                   ind_dis <- cleanIndications(ind)
+                   
                    incProgress(1.0)
                  })
                  
                  ## display results
                  # set-up the table
-                 output$ind <- renderTable({ # indications statistics report
-                   return(ind) # this becomes 'ind' in ui
+                 output$ind_dis <- renderTable({ # indications statistics report
+                   return(ind_dis) # this becomes 'ind_dis' in ui
                  })
                  
                  # set-up the download
@@ -309,6 +324,7 @@ server <- function(input, output, session) {
                    },
                    content=function(file) {
                      vroom::vroom_write(ind, file, delim=',') # delim = ',' so writes CSV
+                     # Note, we download the full version, not the display one
                    }
                  )
                  
@@ -327,13 +343,17 @@ server <- function(input, output, session) {
                                          ndraws=ndraws,
                                          alphaThr=alphaThr,
                                          statsExport=NA)
+                   
+                   ## prepare the display version
+                   tar_dis <- cleanTTDtargets(tar)
+                   
                    incProgress(1.0)
                  })
                  
                  ## display results
                  # set-up the table
-                 output$tar <- renderTable({ # TTD targets statistics report
-                   return(tar) # this becomes 'tar' in ui
+                 output$tar_dis <- renderTable({ # TTD targets statistics report
+                   return(tar_dis) # this becomes 'tar' in ui
                  })
                  
                  # set-up the download
@@ -343,6 +363,7 @@ server <- function(input, output, session) {
                    },
                    content=function(file) {
                      vroom::vroom_write(tar, file, delim=',') # delim = ',' so writes CSV
+                     # Note, we download the full table, not the display version
                    }
                  )
                  
@@ -361,13 +382,17 @@ server <- function(input, output, session) {
                                          ndraws=ndraws,
                                          alphaThr=alphaThr,
                                          statsExport=NA)
+                   
+                   ## prepare display version
+                   keg_dis <- cleanKEGG(keg)
+                   
                    incProgress(1.0)
                  })
                  
                  ## display results
                  # set-up the table
-                 output$keg <- renderTable({ # KEGG pathways statistics report
-                   return(keg) # this becomes 'keg' in ui
+                 output$keg_dis <- renderTable({ # KEGG pathways statistics report
+                   return(keg_dis) # this becomes 'keg' in ui
                  })
                  
                  # set-up the download
@@ -377,6 +402,7 @@ server <- function(input, output, session) {
                    },
                    content=function(file) {
                      vroom::vroom_write(keg, file, delim=',') # delim = ',' so writes CSV
+                     # Note, we download the full table, not the display version
                    }
                  )
                  
