@@ -32,14 +32,12 @@ source('ggEnrich.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 2
+ndraws <- 100000
 alphaThr <- 0.2
 
-# set maximum upload to 30 Gb
-options(shiny.maxRequestSize = 3000*1024^2)
-
-# ! will face some issues when deployed, likely need Basic plan at 440$/year
-# https://support.posit.co/hc/en-us/articles/219449487--How-much-data-can-I-upload-to-shinyapps-io-
+# set maximum upload to 100 Mb
+options(shiny.maxRequestSize = 100*1024^2)
+# one middur file is ~ 2 Mb, so 100 Mb should be sufficient for ~ 100 experiments
 
 # seems fairly easy to save uploaded data to Dropbox, if useful at some point
 # https://www.r-bloggers.com/2015/07/persistent-data-storage-in-shiny-apps/
