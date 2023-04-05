@@ -174,16 +174,29 @@ server <- function(input, output, session) {
   # note input$geno_drop is NULL initially
   observeEvent(input$geno_drop, # means: observe the genotype file import widget, if it changes, trigger the code below
                {
-                 # import the genotype file
-                 geno <- importGenotype(input$geno_drop$datapath)
-                 # get the group names from it
-                 grpnms <- colnames(geno)
+                 # remember, user may have given multiple genotype files
+                 # so we loop through paths given
+                 grpL <- lapply( 1:length(input$geno_drop$datapath) , function(i) {
+                   # import the genotype file
+                   geno <- importGenotype(input$geno_drop$datapath[i])
+                   # get the group names from it
+                   grpnms <- colnames(geno)
+                   return(grpnms)
+                 })
+                 # so we have a small list where each slot is a small vector with the groups in that genotype file
+                 # as treatment/control groups, user can only choose groups which are present in both genotype files
+                 # i.e. the intersection of those character vectors
+                 grpnms <- do.call(intersect, grpL)
+                 
+                 # check that there are more than one group available
+                 if(length(grpnms)<2) stop('\t \t \t \t >>> Error: please have at least 2 groups present in all genotype files. \n')
                  
                  # update the selection of treatment / control group so it lists the groups available in the data
+                 # selected is the 'pre-fill' option
                  updateSelectInput(session, input='treGrp_select',
-                                   choices=grpnms)
+                                   choices=grpnms, selected=grpnms[1])
                  updateSelectInput(session, input='conGrp_select',
-                                   choices=grpnms)
+                                   choices=grpnms, selected=grpnms[2])
                })
   
   
@@ -193,17 +206,88 @@ server <- function(input, output, session) {
                  req(input$mid_drop) # check that middur file is available
                  req(input$geno_drop) # check that genotype file is available
                  
-                 ### calculate fingerprint ###
                  
-                 # import middur file
-                 mid <- read.csv(input$mid_drop$datapath)
+                 ### match middur files & genotype files ###
+                 # we will match them by YYMMDD_BX
+                 # first, check user gave the same number of middur files and genotype files
+                 if(length(input$mid_drop$datapath) != length(input$geno_drop$datapath))
+                   stop('\t \t \t \t >>> Error: please give the same number of middur files and genotype files. Each middur file should have its own genotype file. \n')
                  
-                 fgp <<- legacyFingerprintMid(mid=mid,
-                                              genopath=input$geno_drop$datapath,
-                                              treGrp=input$treGrp_select,
-                                              conGrp=input$conGrp_select,
-                                              nights=c('night1', 'night2'),
-                                              days=c('day1', 'day2'))
+                 # we will order of middur files are correct order
+                 # and sort the genotype files in the same order
+                 # get the YYMMDD_BX of all the middur files
+                 midymdb <- sapply(1:length(input$mid_drop$datapath), function(i) {
+                   filnm <- tools::file_path_sans_ext(input$mid_drop$name[i])
+                   return( substr(filnm, 1, 9) )
+                 })
+                 # check no duplicates
+                 if(sum(duplicated(midymdb))>0)
+                   stop('\t \t \t \t >>> Error: some of the middur files given have the same YYMMDD_BX. Please edit the file name and start again. \n')
+                   
+                 # get the YYMMDD_BX of all the genotype files
+                 genoymdb <- sapply(1:length(input$mid_drop$datapath), function(i) {
+                   filnm <- tools::file_path_sans_ext(input$geno_drop$name[i])
+                   return( substr(filnm, 1, 9) )
+                 })
+                 # check no duplicates
+                 if(sum(duplicated(genoymdb))>0)
+                   stop('\t \t \t \t >>> Error: some of the genotype files given have the same YYMMDD_BX. Please edit the file name and start again. \n')
+                 
+                 # now match each middur file with its genotype file
+                 mgmatch <- match(midymdb, genoymdb)
+                 # this gives the order of the genotype files
+                 # any NA is the sign that one middur file is unmatched or one genotype file is unmatched
+                 if(sum(is.na(mgmatch))>0)
+                   stop('\t \t \t \t Error: please check carefully that each middur file YYMMDD_BX matches one genotype file YYMMDD_BX. \n')
+                 
+                 # so prepare now the genotype paths in the right order
+                 genopaths <- input$geno_drop$datapath[mgmatch]
+                 # also record their names in the same order
+                 genonms <- input$geno_drop$name[mgmatch]
+                 
+                 # check
+                 sapply(1:length(genopaths), function(i) {
+                   cat('\t \t \t \t >>> Middur file', input$mid_drop$name[i], 'matched with genotype file', genonms[i],'\n')
+                 })
+                 
+                 
+                 ### calculate fingerprints ###
+                 # remember, user may have given multiple middur files
+                 # so we loop through paths given
+                 fgpL <- lapply( 1:length(input$mid_drop$datapath) , function(i) {
+                   # import the middur file
+                   mid <- read.csv(input$mid_drop$datapath[i])
+                   
+                   # prepare the fingerprint
+                   fgp <- legacyFingerprintMid(mid=mid,
+                                               genopath=genopaths[i],
+                                               treGrp=input$treGrp_select,
+                                               conGrp=input$conGrp_select,
+                                               nights=c('night1', 'night2'),
+                                               days=c('day1', 'day2'))
+                   
+                   # change column name zsco into exp1, exp2, etc.
+                   colnames(fgp)[which(colnames(fgp)=='zsco')] <- paste0('exp', i)
+                   
+                   # return the fingerprint
+                   return(fgp)
+                 })
+                 
+                 
+                 # if we had multiple middur files, join fingerprint tables in the list fgpL
+                 # (using join_all from plyr)
+                 # and calculate mean of all experiments
+                 if(length(fgpL)>1) {
+                   fgp <- plyr::join_all(fgpL, by=c('uparam', 'parameter', 'win'), type='left')
+                   # (avoid loading plyr because it replaces functions from dplyr)
+                   
+                   fgp <- fgp %>%
+                     mutate(zsco = rowMeans(select(., starts_with('exp')))) # mean of columns that start with 'exp'
+                   
+                 } else { # if only 1 middur file
+                   fgp <- fgpL[[1]]
+                 }
+                 
                  
                  ### prepare fingerprint plot ###
                  ggfgp <- gglegacyFingerprint(

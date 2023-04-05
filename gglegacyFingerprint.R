@@ -61,8 +61,8 @@ gglegacyFingerprint <- function(lFgp,
     lFgp <- lFgp %>%
       filter(grp %in% onlyGrp)
   }
-
   
+
   ### how to connect datapoints in plot ###
   # we want to connect by grp_win:
   lFgp <- lFgp %>%
