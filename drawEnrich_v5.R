@@ -348,13 +348,23 @@ rankDrugDb <- function(legacyFgp,
   ddb$nightmean_averageWaking <- NULL
   
   # detect column where Z-scores start
-  zcol <- min(which(startsWith(colnames(ddb), 'night')))
+  zcol <- min(which(startsWith(colnames(ddb), c('day', 'night'))))
   
   # detect column where Z-scores end
-  zcoll <- max(which(startsWith(colnames(ddb), 'night')))
+  zcoll <- max(which(startsWith(colnames(ddb), c('day', 'night'))))
   
   # (this way if we add columns it does not break the function)
   
+  ## ! makes it so legacyFgp gives uparam in same order as ddb
+  # first, check both give the same parameters
+  if(!identical( sort(colnames(ddb)[zcol:zcoll]) , sort(legacyFgp$uparam)))
+             stop('\t \t \t \t >>> Error rankDrugDb: drugDb and legacyFgp do not give the same parameters. \n')
+  # next, ensure legacyFgp gives them in same order
+  legacyFgp <- legacyFgp[match(colnames(ddb)[zcol:zcoll], legacyFgp$uparam),]
+  
+  # check this (it is crucial for below)
+  if(!identical( colnames(ddb)[zcol:zcoll] , legacyFgp$uparam))
+    stop('\t \t \t \t >>> Error rankDrugDb: drugDb and legacyFgp do not give parameters in the same order, even after re-ordering. \n')
   
   ### calculate correlation vs legacyFgp
   dcor <- sapply(1:nrow(ddb), function(d) {

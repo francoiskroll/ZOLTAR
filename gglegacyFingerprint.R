@@ -207,12 +207,12 @@ ggDrugFgp <- function(drugDb,
   ### keep only Z-scores from legacy fingerprint(s)
   if (!is.null(legacyFgp[1])) {
     
-    # will assume for now that only given one legacyFgp, can improve later
-    # ensure that parameters are given in the same order
+    # note, can work for multiple fingerprints
+    # assuming column names of Z-score columns give the group
     
     # first, confirm legacyFgp and drugDb are giving the same parameters
     if(! identical( sort(dbn$uparam) , sort(legacyFgp$uparam )))
-      stop('\t \t \t \t >>> Error ggDrugFgp: drugDb and legacyFingerprint not giving the same parameters. \n')
+      stop('\t \t \t \t >>> Error ggDrugFgp: drugDb and legacyFingerprint do not give the same parameters. \n')
     
     # add fingerprints we find in legacyFgp
     # ! will assume it is every columns not named uparam, win, parameter
@@ -220,11 +220,6 @@ ggDrugFgp <- function(drugDb,
     cols2take <- which(! colnames(legacyFgp) %in% c('win', 'parameter'))
     dbn <- right_join(dbn, legacyFgp[cols2take], by='uparam') # join so will work even if parameters not giving in exactly the same order
     # (we checked above all parameters are present)
-
-    # grpnm <- unique(legacyFgp$grp)
-    
-    # colnames(dbn)[which(colnames(dbn)=='lfp')] <- grpnm
-    # ! does not currently support multiple groups (e.g. HOM / HET), will need to improve later
     
   }
   

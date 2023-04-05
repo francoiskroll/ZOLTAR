@@ -72,13 +72,13 @@ ui <- fluidPage(
       
       ## middur input widget
       fileInput(inputId='mid_drop',
-                label='Select or drop your middur.csv file',
+                label='Select or drop your middur.csv file(s)',
                 multiple=TRUE,
                 accept='.csv') ,
       
       ## genotype input widget
       fileInput(inputId='geno_drop',
-                label='Select or drop your genotype.txt file',
+                label='Select or drop your genotype.txt file(s)',
                 multiple=TRUE,
                 accept='.txt') ,
       
@@ -104,12 +104,13 @@ ui <- fluidPage(
     mainPanel(
       tabsetPanel(
         
-        tabPanel('Table',
-                 tableOutput('fgp')),
+        # tabPanel('Table',
+        #          tableOutput('fgp')),
         
         tabPanel('Fingerprint',
                  p(''),
                  downloadButton('ggfgp_dl', 'download pdf'),
+                 p(''),
                  plotOutput('ggfgp')),
         
         # tabPanel('Drugs ranked',
@@ -125,24 +126,28 @@ ui <- fluidPage(
                  p('• Click on Cosine column to rank by increasing or decreasing'),
                  p('• Click on a row to reveal fingerprint plot.'),
                  downloadButton('vdbr_dl', 'download'),
+                 p(''),
                  DTOutput('vdbr_dis')),
         
         tabPanel('Indications',
                  p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('ind_dl', 'download'),
+                 p(''),
                  DTOutput('ind_dis')) ,
         
         tabPanel('Targets',
                  p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('ttar_dl', 'download'),
+                 p(''),
                  DTOutput('ttar_dis')) ,
         
         tabPanel('KEGG pathways',
                  p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('keg_dl', 'download'),
+                 p(''),
                  DTOutput('keg_dis')) ,
         
         # 04/04/2023 switching off STITCH for now, needs a bit more work
@@ -186,7 +191,11 @@ server <- function(input, output, session) {
                  # so we have a small list where each slot is a small vector with the groups in that genotype file
                  # as treatment/control groups, user can only choose groups which are present in both genotype files
                  # i.e. the intersection of those character vectors
-                 grpnms <- do.call(intersect, grpL)
+                 if(length(grpL)>1) {
+                   grpnms <- do.call(intersect, grpL)
+                 } else {
+                   grpnms <- grpL[[1]]
+                 }
                  
                  # check that there are more than one group available
                  if(length(grpnms)<2) stop('\t \t \t \t >>> Error: please have at least 2 groups present in all genotype files. \n')
@@ -284,9 +293,19 @@ server <- function(input, output, session) {
                    fgp <- fgp %>%
                      mutate(zsco = rowMeans(select(., starts_with('exp')))) # mean of columns that start with 'exp'
                    
+                   # also record fgp as global variable
+                   fgp <<- fgp
+                   
                  } else { # if only 1 middur file
+                   # then we have fingerprint table with column called exp1
                    fgp <- fgpL[[1]]
+                   # change that column name back to zsco
+                   colnames(fgp)[which(colnames(fgp)=='exp1')] <- 'zsco'
+                   
+                   # also record as global variable
+                   fgp <<- fgp
                  }
+                 # make fgp a global variable (<<-) because also used when user clicks on ranked drugs to reveal fingerprint plot
                  
                  
                  ### prepare fingerprint plot ###
@@ -533,7 +552,7 @@ server <- function(input, output, session) {
     ggDfp <- ggDrugFgp(drugDb='drugDb.csv',
                        dnames=nms2plot,
                        legacyFgp=fgp,
-                       onlyGrp=NA,
+                       onlyGrp=c('zsco', nms2plot), # if user gave multiple experiments, this will only keep zsco which is the mean fingerprint
                        colours=NA,
                        legendOrNo=TRUE,
                        ynameOrNo=TRUE,
