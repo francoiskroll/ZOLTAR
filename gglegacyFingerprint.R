@@ -37,13 +37,6 @@ gglegacyFingerprint <- function(lFgp,
                                 height=100) {
   
   
-  ### keep only some columns from fingerprint ###
-  # namely uparam, win, parameter, zsco
-  # we do not want columns meanCon, stdCon, meanTre, stdTre
-  lFgp <- lFgp %>%
-    select(uparam, win, parameter, zsco)
-  
-  
   ### set order of uparam ###
   # currently order is:
   # parameter1 : night1, day1, night2, day2
@@ -60,6 +53,7 @@ gglegacyFingerprint <- function(lFgp,
     pivot_longer(-c(uparam, win, parameter),
                  names_to='grp',
                  values_to='zsco')
+  
   
   ### keep only groups we are plotting ###
   # if not plotting every group:
@@ -162,10 +156,16 @@ ggDrugFgp <- function(drugDb,
     ddb <- drugDb
   }
   
+  
+  ## 05/04/2023, decided when developing predPharam Shiny app to delete parameters daymean_averageWaking & nightmean_averageWaking
+  # see rationale in paramsFromMid.R
+  ddb$daymean_averageWaking <- NULL
+  ddb$nightmean_averageWaking <- NULL
+  
   # detect column where Z-scores start
-  zcol <- min(which(startsWith(colnames(ddb), 'night')))
+  zcol <- min( which(startsWith(colnames(ddb), c('day', 'night'))) )
   # detect column where Z-scores end
-  zcoll <- max(which(startsWith(colnames(ddb), 'night')))
+  zcoll <- max( which(startsWith(colnames(ddb), c('day', 'night'))) )
   # (this way if we add columns it does not break the function)
   
   # keep only drugs we want to plot
@@ -209,16 +209,18 @@ ggDrugFgp <- function(drugDb,
     
     # will assume for now that only given one legacyFgp, can improve later
     # ensure that parameters are given in the same order
-    if(!identical(dbn$uparam , legacyFgp$uparam))
-      stop('\t \t \t \t >>> uparam are not given in same order in drugDb and legacyFingerprint, check manually \n')
+    
+    # first, confirm legacyFgp and drugDb are giving the same parameters
+    if(! identical( sort(dbn$uparam) , sort(legacyFgp$uparam )))
+      stop('\t \t \t \t >>> Error ggDrugFgp: drugDb and legacyFingerprint not giving the same parameters. \n')
     
     # add fingerprints we find in legacyFgp
     # ! will assume it is every columns not named uparam, win, parameter
-    cols2take <- which(! colnames(legacyFgp) %in% c('uparam', 'win', 'parameter'))
-    
-    dbn <- dbn %>%
-      add_column(legacyFgp[,cols2take])
-    
+    # (we keep uparam for the join below)
+    cols2take <- which(! colnames(legacyFgp) %in% c('win', 'parameter'))
+    dbn <- right_join(dbn, legacyFgp[cols2take], by='uparam') # join so will work even if parameters not giving in exactly the same order
+    # (we checked above all parameters are present)
+
     # grpnm <- unique(legacyFgp$grp)
     
     # colnames(dbn)[which(colnames(dbn)=='lfp')] <- grpnm

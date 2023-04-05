@@ -17,7 +17,6 @@ library(bslib)
 library(DT)
 
 
-
 # functions ---------------------------------------------------------------
 
 source('legacyFingerprint.R')
@@ -35,7 +34,6 @@ Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drug
 
 ndraws <- 2
 alphaThr <- 0.2
-showNdrugs <- 100
 
 # set maximum upload to 30 Gb
 options(shiny.maxRequestSize = 3000*1024^2)
@@ -110,6 +108,7 @@ ui <- fluidPage(
                  tableOutput('fgp')),
         
         tabPanel('Fingerprint',
+                 p(''),
                  downloadButton('ggfgp_dl', 'download pdf'),
                  plotOutput('ggfgp')),
         
@@ -122,21 +121,26 @@ ui <- fluidPage(
         #          tableOutput('botdr')), # botdr is for bottom X drugs
         
         tabPanel('Drugs ranked',
-                 p('Click on Cosine column to rank by increasing or decreasing'),
+                 p(''),
+                 p('• Click on Cosine column to rank by increasing or decreasing'),
+                 p('• Click on a row to reveal fingerprint plot.'),
                  downloadButton('vdbr_dl', 'download'),
                  DTOutput('vdbr_dis')),
         
         tabPanel('Indications',
+                 p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('ind_dl', 'download'),
                  DTOutput('ind_dis')) ,
         
         tabPanel('Targets',
+                 p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('ttar_dl', 'download'),
                  DTOutput('ttar_dis')) ,
         
         tabPanel('KEGG pathways',
+                 p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('keg_dl', 'download'),
                  DTOutput('keg_dis')) ,
@@ -154,9 +158,6 @@ ui <- fluidPage(
     )
     
   ),
-  
-  ### 
-  # tags$div(id='plot_modal')
 )
 
 
@@ -197,12 +198,12 @@ server <- function(input, output, session) {
                  # import middur file
                  mid <- read.csv(input$mid_drop$datapath)
                  
-                 fgp <- legacyFingerprintMid(mid=mid,
-                                             genopath=input$geno_drop$datapath,
-                                             treGrp=input$treGrp_select,
-                                             conGrp=input$conGrp_select,
-                                             nights=c('night1', 'night2'),
-                                             days=c('day1', 'day2'))
+                 fgp <<- legacyFingerprintMid(mid=mid,
+                                              genopath=input$geno_drop$datapath,
+                                              treGrp=input$treGrp_select,
+                                              conGrp=input$conGrp_select,
+                                              nights=c('night1', 'night2'),
+                                              days=c('day1', 'day2'))
                  
                  ### prepare fingerprint plot ###
                  ggfgp <- gglegacyFingerprint(
@@ -426,6 +427,60 @@ server <- function(input, output, session) {
                  
                  ###############################################################
 
+  })
+  
+  
+  ###############################################################
+  ### clickable drugs ranked table to reveal fingerprint plot ###
+  observeEvent(input$vdbr_dis_rows_selected, {
+    req(input$vdbr_dis_rows_selected)
+    
+    # get the index of the selected row
+    clickrow <- input$vdbr_dis_rows_selected
+    
+    # what is the CID of the selected compound?
+    cid <- vdbr[clickrow, 'cid']
+    
+    # search all other rows with that CID and take their compounds names (original names)
+    nms2plot <- unique( vdbr[which(vdbr$cid==cid), 'name'] ) # these are the names to plot
+    # (it will necessarily include the compound the user clicked on)
+    
+    # prepare the fingerprint plot
+    ggDfp <- ggDrugFgp(drugDb='drugDb.csv',
+                       dnames=nms2plot,
+                       legacyFgp=fgp,
+                       onlyGrp=NA,
+                       colours=NA,
+                       legendOrNo=TRUE,
+                       ynameOrNo=TRUE,
+                       ytextOrNo=TRUE,
+                       xtextOrNo=TRUE,
+                       nightBgOrNo=TRUE,
+                       ymin=-3,
+                       ymax=3,
+                       exportOrNo=FALSE, 
+                       exportPath=NA,
+                       width=NA,
+                       height=NA)
+    
+    modal <- modalDialog(
+      title = 'Barcode plot' ,
+      
+      # tell user about what we did
+      paste(length(which(vdbr$cid==cid)), 'fingerprint(s) for PubChem CID', cid, '\n'),
+      
+      plotOutput( 'ggDfp' ) ,
+      
+      easyClose=TRUE,
+      footer=modalButton('Close')
+    )
+    
+    showModal(modal)
+    
+    output$ggDfp <- renderPlot({
+      return(ggDfp)
+    })
+    
   })
   
   

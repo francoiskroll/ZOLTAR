@@ -66,15 +66,10 @@ cleanIndications <- function(ind) {
   ind$nhigher <- as.integer(ind$nhigher)
   
   # round some columns
-  print('sumRanks')
   ind$sumRanks <- round(ind$sumRanks, digits=2)
-  print('bestPos')
   ind$bestPos <- round(ind$bestPos, digits=2)
-  print('sumRanksFracPos')
   ind$sumRanksFracPos <- round(ind$sumRanksFracPos, digits=2)
-  print('ksD')
   ind$ksD <- round(ind$ksD, digits=2)
-  print('kspval')
   ind$kspval <- round(ind$kspval, digits=2)
   
   ## re-name columns
