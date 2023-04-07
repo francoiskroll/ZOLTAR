@@ -28,6 +28,7 @@ gglegacyFingerprint <- function(lFgp,
                                 ynameOrNo=TRUE,
                                 ytextOrNo=TRUE,
                                 xtextOrNo=TRUE,
+                                paramNumOrNo=FALSE,
                                 nightBgOrNo=TRUE,
                                 ymin,
                                 ymax,
@@ -37,19 +38,42 @@ gglegacyFingerprint <- function(lFgp,
                                 height=100) {
   
   
+  ### about settings ###
+  
+  # if xtextOrNo is FALSE, make sure paramNumOrNo is also set to FALSE to avoid error
+  if(!xtextOrNo) {
+    paramNumOrNo <- FALSE
+  }
+  
+  
   ### set order of uparam ###
-  # currently order is:
-  # parameter1 : night1, day1, night2, day2
+  
+  # order which makes most sense to me is:
+  paramOrder <- c('averageActivity', 'averageWaking', 'sleep', 'sleepBout', 'sleepLength', 'sleepLatency')
+  # set those as levels of parameters
+  lFgp$parameter <- factor(lFgp$parameter, levels=paramOrder)
+  # re-order the fingerprint following those levels
+  lFgp <- lFgp[order(lFgp$parameter),]
+  
+  # now, order is:
+  # parameter1 : night1, night2, day1, day2
   # parameter2 : ..
   # but will look nicer to do "mini-fingerprints",
   # i.e. all day1 parameters, followed by all day2 parameters, etc.
-  # we can achieve this by simply ordering by window, so we will get all day1 on top, then day2, then night1, then night2
-  lFgp <- lFgp[order(lFgp$win),]
+  # set desired order of windows as levels
+  lFgp$win <- factor(lFgp$win, levels=c('day1', 'day2', 'night1', 'night2'))
+  
+  # now we order first by win, then by parameter to get desired order
+  lFgp <- lFgp[order(lFgp$win, lFgp$parameter),]
+  
+  # set uparam column as it is as levels so sure gets plotted this way
+  lFgp$uparam <- factor(lFgp$uparam, levels=lFgp$uparam)
+  
   
   ### if multiple fingerprints, make sure Z-scores given on top of each other ###
   # assumes format is e.g. : uparam / win / parameter / drug1 / drug2 / KO
   # drug1, drug2, KO being columns of Z-scores
-  lFgp <- lFgp %>%
+  lFgpl <- lFgp %>%
     pivot_longer(-c(uparam, win, parameter),
                  names_to='grp',
                  values_to='zsco')
@@ -58,34 +82,35 @@ gglegacyFingerprint <- function(lFgp,
   ### keep only groups we are plotting ###
   # if not plotting every group:
   if(!is.na(onlyGrp[1])) {
-    lFgp <- lFgp %>%
+    lFgpl <- lFgpl %>%
       filter(grp %in% onlyGrp)
   }
   
 
   ### how to connect datapoints in plot ###
   # we want to connect by grp_win:
-  lFgp <- lFgp %>%
+  lFgpl <- lFgpl %>%
     mutate(grp_win=paste(grp, win, sep='_'), .after='parameter')
 
 
   ### colours ###
   # if user did not provide any colours, we use automatic ggplot colours
   if(is.na(colours[1])) {
-    colours <- scales::hue_pal()(length(unique(lFgp$grp)))
+    colours <- scales::hue_pal()(length(unique(lFgpl$grp)))
   }
 
   ### set the axes ###
   # set y axis name
-  yname <- expression(paste('deviation from controls (', italic(Z), '-score)'))
+  yname <- expression(paste('deviation from controls (z-score)'))
 
   # below: find last 'day' parameter
   # we want the grey frame to start just after (+0.5)
   # take unique uparam
-  xmid <- max(which(startsWith(as.character(unique(lFgp$uparam)), 'day'))) + 0.5
+  xmid <- max(which(startsWith(as.character(unique(lFgpl$uparam)), 'day'))) + 0.5
+  
 
   ### plot ###
-  ggFgp <- ggplot(lFgp, aes(x=uparam, y=zsco, colour=grp, group=grp_win)) +
+  ggFgp <- ggplot(lFgpl, aes(x=uparam, y=zsco, colour=grp, group=grp_win)) +
     geom_hline(yintercept=0, linetype=1, colour='#a7a7a7', linewidth=0.5) +
     geom_point() +
     geom_line() +
@@ -105,8 +130,15 @@ gglegacyFingerprint <- function(lFgp,
 
     {if(!ytextOrNo) theme(axis.text.y=element_blank())} +
     {if(ytextOrNo) theme(axis.text.y=element_text(size=7))} +
-
-    {if(xtextOrNo) theme(axis.text.x=element_text(size=12, angle=45, hjust=1))} +
+    
+    # add X axis labels (uparam)
+    {if(xtextOrNo & !paramNumOrNo) theme(axis.text.x=element_text(size=12, angle=45, hjust=1))} +
+    
+    # or X axis labels as parameter numbers
+    {if(paramNumOrNo) scale_x_discrete(labels=match(lFgp$parameter, paramOrder))} +
+    {if(paramNumOrNo) theme(axis.text.x=element_text(size=9))} +
+    
+    # or turn off X axis labels completely
     {if(!xtextOrNo) theme(axis.text.x=element_blank())} +
 
     coord_cartesian(ylim=c(ymin, ymax))
@@ -139,6 +171,7 @@ ggDrugFgp <- function(drugDb,
                       ynameOrNo,
                       ytextOrNo,
                       xtextOrNo,
+                      paramNumOrNo,
                       nightBgOrNo,
                       ymin,
                       ymax,
@@ -232,6 +265,7 @@ ggDrugFgp <- function(drugDb,
                               ynameOrNo=ynameOrNo,
                               ytextOrNo=ytextOrNo,
                               xtextOrNo=xtextOrNo,
+                              paramNumOrNo=paramNumOrNo,
                               nightBgOrNo=nightBgOrNo,
                               ymin=ymin,
                               ymax=ymax,

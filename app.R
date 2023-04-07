@@ -32,7 +32,7 @@ source('ggEnrich.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 100000
+ndraws <- 10000
 alphaThr <- 0.2
 
 # set maximum upload to 100 Mb

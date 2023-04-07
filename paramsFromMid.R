@@ -27,6 +27,8 @@ library(tidyr)
 # function legacyFingerprintMid(...) --------------------------------------
 
 # function legacyFingerprint was calculating fingerprint from .mat file
+# functions for this are in legacyFingerprint.R
+
 # now, takes _middur.csv as input, hence 'Mid'
 
 # this will essentially run the entire pipeline of paramsFromMid
@@ -421,8 +423,9 @@ splitMidbyDayNight <- function(mid) {
   # fill the list
   # for each window, we take from row just after transition until row just before transition
   # e.g. night0 will be something like: 14.01 hr until 23.99 hr
+  # as we are dealing with one-minute binned data, there are not too many rows, so convert data.table to dataframe which I find easier
   for(w in 1:length(dn)) {
-    dn[[w]] <- mid[ (tramin[w] + 1) : (tramin[w+1]) , ]
+    dn[[w]] <- as.data.frame(mid[ (tramin[w] + 1) : (tramin[w+1]) , ])
   }
   
   # return the list
