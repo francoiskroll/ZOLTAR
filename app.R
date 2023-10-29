@@ -32,7 +32,7 @@ source('ggEnrich.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 100000
+ndraws <- 100
 alphaThr <- 0.2
 
 # set maximum upload to 100 Mb
@@ -100,7 +100,21 @@ ui <- fluidPage(
       
       ## GO button
       actionButton(inputId='go_button',
-                   label='Go')
+                   label='Go'),
+      
+      p(''),
+      
+      ## link to tutorial
+      p(a(href="https://github.com/francoiskroll/ZOLTAR#readme",
+          HTML("Read instructions"))),
+      
+      ## download sample data
+      # downloadLink('mid14_dl', 'Download sample data')
+      downloadLink('zip_dl', 'Download sample data'),
+      
+      ## cite us!
+      p(''),
+      p('Cite us!')
       
     ),
     
@@ -178,6 +192,17 @@ ui <- fluidPage(
 # it seems like using a Progress object could make it more precise but requires more work
 
 server <- function(input, output, session) {
+  
+  #### set-up download of sample data
+  output$zip_dl <- downloadHandler( # download TTD targets
+    filename=function() {
+      'sampledata.zip'
+    },
+    content=function(file) {
+      file.copy('sampledata.zip', file)
+    }
+  )
+  
   
   #### update the group selection when user drops the genotype file ####
   # note input$geno_drop is NULL initially
