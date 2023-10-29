@@ -178,15 +178,33 @@ ggDraws <- function(vdbr,
   # I find histograms more intuitive than geom_density()
   ggES <- ggplot(drahist, aes(x=middle, y=freq)) +
     geom_bar(stat='identity') +
+    # add observed mark
+    geom_vline(xintercept=sr, linewidth=0.75, linetype=1, colour='#cb2a20') +
+    # add 95th percentile
     geom_vline(xintercept=p95, linewidth=0.5, linetype=2, colour='#aeb3b4') +
+    # add 99th percentile
     geom_vline(xintercept=p99, linewidth=0.5, linetype=2, colour='#585e60') +
-    geom_vline(xintercept=sr, linewidth=0.75, linetype=1, colour='#EE7163') +
     theme_minimal() +
+    theme(
+      panel.grid.minor.x=element_blank(),
+      panel.grid.minor.y=element_blank(),
+      axis.title.x=element_text(size=9),
+      axis.title.y=element_text(size=9),
+      axis.text.x=element_text(size=7, margin=margin(t=-2, r=0, b=0, l=0)),
+      axis.text.y=element_text(size=7, margin=margin(t=0, r=-2, b=0, l=0))
+    ) +
     xlab('sum of ranks') +
     ylab('frequency')
   
+  
+  # print some statistics for user
+  cat('\t \t \t \t >>>', nsim, 'draws out of', ndraws, 'gave a more extreme sum of ranks.\n
+      \t \t \t Estimated p-value = ', pv, '\n')
+  
   # export plot
-  ggsave(exportPath, ggES, width=width, height=height, units='mm')
+  ggsave(exportPath, ggES, width=width, height=height, units='mm', device=cairo_pdf)
+  
+  return(ggES)
   
 }
 
@@ -246,6 +264,11 @@ ggBarcode <- function(vdbr,
   radf <- radf %>%
     mutate(isSet=(radf[,annotationCol]==testAnnotation))
   
+  
+  # print the rows which are isSet
+  # sometimes useful to label plot manually
+  print( radf[which(radf$isSet),] )
+  
   # we will label the position with maximum cos, the position with minimum cos
   # and cos ~ 0, i.e. the position at which cos is closest to 0
   # rows to label:
@@ -262,18 +285,21 @@ ggBarcode <- function(vdbr,
   
   # add the labels
   ggBco <- ggBco +
-    geom_text(data=radf[rw2l,], aes(x=rank, y=0.43, label=round(cos, 2)), colour='#5f5f5f') # note ***
+    geom_text(data=radf[rw2l,], aes(x=rank, y=0.40, label=round(cos, 2)), colour='#4d4d4d', size=2.5) # note ***
   # *** for cos at row cos0pos to not be exactly = 0, the smallest cos needs to be > 0.009
   # it seems like usually it is smaller than that, but we calculate it instead of assuming it is = 0 so we can detect cases when it is not
   
   # add all the bars *not* from the set
   ggBco <- ggBco +
-    geom_tile(data=filter(radf, !isSet), aes(x=rank, y=1), fill='#697a87', width=barwidth1)
+    geom_tile(data=filter(radf, !isSet), aes(x=rank, y=1), fill='#aeb3b4', width=barwidth1)
+  
   
   # add the bars from the set
   ggBco <- ggBco +
-    geom_tile(data=filter(radf, isSet), aes(x=rank, y=1, fill='#EE7163'), colour='white', width=barwidth2, linewidth=0.001) +
-    geom_segment(data=filter(radf, isSet), aes(x=rank, y=1.52, xend=rank, yend=1.51, colour='#EE7163'),
+    geom_tile(data=filter(radf, isSet), aes(x=rank, y=1), fill='#fcb505', colour='white', width=barwidth2, linewidth=0.001) +
+    # add the arrows
+    geom_segment(data=filter(radf, isSet), aes(x=rank, y=1.52, xend=rank, yend=1.51),
+                 colour='#fcb505',
                  lineend='butt',
                  linejoin='mitre', 
                  arrow=arrow(length=unit(2, 'mm'),
