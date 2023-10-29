@@ -1,4 +1,4 @@
-# predPharmaShiny
+# ZOLTAR
 
 https://francoiskroll.shinyapps.io/zoltar/
 
