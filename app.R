@@ -32,7 +32,7 @@ source('ggEnrich.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 10000
+ndraws <- 100000
 alphaThr <- 0.2
 
 # set maximum upload to 100 Mb
@@ -57,16 +57,22 @@ ui <- fluidPage(
   #   base_font='Rubik'
   # ),
   
+  title='ZOLTAR',
+  
+  tags$head(tags$link(rel="icon", type="image/png", href="favicon.png")),
+  
   ### app title
-  titlePanel('Predictive pharmacology'),
+  img(src='zoltar.png', align='top', height=117.1, width=471),
+  
+  # titlePanel('ZOLTAR'),
   # subtitle
-  p(em('From behavioural fingerprint to drugs and pathways'), style='color:grey'),
+  # p(em('"From a Zebrafish behaviOuraL fingerprinT, I will predict candidate Therapeutics and cAusal pRocesses"'), style='color:grey'),
   
   ### sidebar layout = inputs on left, outputs on right
   sidebarLayout(
     
     ### sidebar
-    sidebarPanel(
+    sidebarPanel(width=4,
       
       ## middur input widget
       fileInput(inputId='mid_drop',
@@ -273,8 +279,11 @@ server <- function(input, output, session) {
                                                nights=c('night1', 'night2'),
                                                days=c('day1', 'day2'))
                    
-                   # change column name zsco into exp1, exp2, etc.
-                   colnames(fgp)[which(colnames(fgp)=='zsco')] <- paste0('exp', i)
+                   # issue here, function legacyFingerprintMid uses genotype file path to create column as YYMMDD_treGrp
+                   # but when running as app, genotype file path is 1.txt, so does not work
+                   # correct this here
+                  
+                   colnames(fgp)[str_detect(colnames(fgp), '.txt')] <- paste(substr(genonms[i], 1, 9), input$treGrp_select, sep='_')
                    
                    # return the fingerprint
                    return(fgp)
@@ -289,16 +298,19 @@ server <- function(input, output, session) {
                    # (avoid loading plyr because it replaces functions from dplyr)
                    
                    fgp <- fgp %>%
-                     mutate(zsco = rowMeans(select(., starts_with('exp')))) # mean of columns that start with 'exp'
+                     mutate(zsco = rowMeans(select(., matches('^\\d{6}_\\d{2}')))) # mean of columns that have name YYMMDD_BX
+                   # regex is start / 6 digits (YYMMDD) / _ / 2 digits (BX)
+                   # column called zsco is now mean of Z-scores
                    
                    # also record fgp as global variable
                    fgp <<- fgp
                    
                  } else { # if only 1 middur file
-                   # then we have fingerprint table with column called exp1
+                   # then we have fingerprint table with column called YYMMDD_BX_treGrp
                    fgp <- fgpL[[1]]
-                   # change that column name back to zsco
-                   colnames(fgp)[which(colnames(fgp)=='exp1')] <- 'zsco'
+                   # change that column name to simply treGrp
+                   colnames(fgp)[which(stringr::str_detect(colnames(fgp), '^\\d{6}_\\d{2}'))] <- 'zsco'
+                   # same regex as above
                    
                    # also record as global variable
                    fgp <<- fgp
@@ -315,6 +327,8 @@ server <- function(input, output, session) {
                    ynameOrNo=TRUE,
                    ytextOrNo=TRUE,
                    xtextOrNo=TRUE,
+                   yTitleSize=14,
+                   paramNumOrNo=FALSE,
                    nightBgOrNo=TRUE,
                    ymin=-3,
                    ymax=3,
@@ -550,12 +564,13 @@ server <- function(input, output, session) {
     ggDfp <- ggDrugFgp(drugDb='drugDb.csv',
                        dnames=nms2plot,
                        legacyFgp=fgp,
-                       onlyGrp=c('zsco', nms2plot), # if user gave multiple experiments, this will only keep zsco which is the mean fingerprint
+                       onlyGrp=c('mean fgp', nms2plot), # if user gave multiple experiments, this will only keep 'mean fgp' which is the mean fingerprint
                        colours=NA,
                        legendOrNo=TRUE,
                        ynameOrNo=TRUE,
                        ytextOrNo=TRUE,
                        xtextOrNo=TRUE,
+                       paramNumOrNo=TRUE,
                        nightBgOrNo=TRUE,
                        ymin=-3,
                        ymax=3,
