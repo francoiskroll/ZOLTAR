@@ -28,6 +28,7 @@ gglegacyFingerprint <- function(lFgp,
                                 ynameOrNo=TRUE,
                                 ytextOrNo=TRUE,
                                 xtextOrNo=TRUE,
+                                yTitleSize=9,
                                 paramNumOrNo=FALSE,
                                 nightBgOrNo=TRUE,
                                 ymin,
@@ -70,9 +71,15 @@ gglegacyFingerprint <- function(lFgp,
   lFgp$uparam <- factor(lFgp$uparam, levels=lFgp$uparam)
   
   
-  ### if multiple fingerprints, make sure Z-scores given on top of each other ###
-  # assumes format is e.g. : uparam / win / parameter / drug1 / drug2 / KO
-  # drug1, drug2, KO being columns of Z-scores
+  ### if we have a column (grp) that simply says 'zsco'
+  # replace by 'mean fgp' just for aesthetics in the plot
+  if('zsco' %in% colnames(lFgp)) {
+    colnames(lFgp)[which(colnames(lFgp)=='zsco')] <- 'mean fgp'
+  }
+  
+  
+  # below assumes format is e.g. : uparam / win / parameter / fgp1 / fgp2 / fgp3
+  # fgp1, fgp2, fgp3 being columns of Z-scores
   lFgpl <- lFgp %>%
     pivot_longer(-c(uparam, win, parameter),
                  names_to='grp',
@@ -101,7 +108,7 @@ gglegacyFingerprint <- function(lFgp,
 
   ### set the axes ###
   # set y axis name
-  yname <- expression(paste('deviation from controls (z-score)'))
+  yname <- 'deviation from controls\n(z-score)'
 
   # below: find last 'day' parameter
   # we want the grey frame to start just after (+0.5)
@@ -112,7 +119,7 @@ gglegacyFingerprint <- function(lFgp,
   ### plot ###
   ggFgp <- ggplot(lFgpl, aes(x=uparam, y=zsco, colour=grp, group=grp_win)) +
     geom_hline(yintercept=0, linetype=1, colour='#a7a7a7', linewidth=0.5) +
-    geom_point() +
+    geom_point(size=1.5) +
     geom_line() +
     {if(nightBgOrNo) annotate(geom='rect', xmin=xmid, xmax=Inf, ymin=-Inf, ymax=Inf, colour=NA, fill='#1d1d1b', alpha=0.2)} +
     scale_colour_manual(values=colours) +
@@ -120,23 +127,24 @@ gglegacyFingerprint <- function(lFgp,
     theme(
       panel.grid.minor.y=element_blank(),
       axis.title.x=element_blank(),
-      legend.title=element_blank()) +
+      legend.title=element_blank(),
+      legend.text=element_text(size=12)) +
 
     {if(!legendOrNo) theme(legend.position='none')} +
 
     {if(!ynameOrNo) theme(axis.title.y=element_blank())} +
-    {if(ynameOrNo) theme(axis.title.y=element_text(size=9, margin=margin(t=0, r=-1.5, b=0, l=0)))} +
+    {if(ynameOrNo) theme(axis.title.y=element_text(size=yTitleSize, margin=margin(t=0, r=-1.2, b=0, l=0)))} +
     {if(ynameOrNo) ylab(yname)} +
 
     {if(!ytextOrNo) theme(axis.text.y=element_blank())} +
     {if(ytextOrNo) theme(axis.text.y=element_text(size=7))} +
     
     # add X axis labels (uparam)
-    {if(xtextOrNo & !paramNumOrNo) theme(axis.text.x=element_text(size=12, angle=45, hjust=1))} +
+    {if(xtextOrNo & !paramNumOrNo) theme(axis.text.x=element_text(size=7, angle=45, hjust=1))} +
     
     # or X axis labels as parameter numbers
     {if(paramNumOrNo) scale_x_discrete(labels=match(lFgp$parameter, paramOrder))} +
-    {if(paramNumOrNo) theme(axis.text.x=element_text(size=9))} +
+    {if(paramNumOrNo) theme(axis.text.x=element_text(size=7, margin=margin(t=-1.5)))} +
     
     # or turn off X axis labels completely
     {if(!xtextOrNo) theme(axis.text.x=element_blank())} +
@@ -146,7 +154,7 @@ gglegacyFingerprint <- function(lFgp,
 
   ### export the plot ###
   if(exportOrNo) {
-    ggsave(exportPath, ggFgp, width=width, height=height, units='mm')
+    ggsave(exportPath, ggFgp, width=width, height=height, units='mm', device=cairo_pdf)
   }
 
   ### return plot ###

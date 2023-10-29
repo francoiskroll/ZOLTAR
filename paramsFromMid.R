@@ -22,6 +22,9 @@ library(dplyr)
 library(tibble)
 library(tidyr)
 
+inaThr <- 0.1 # this is a threshold which was added by Jason
+# below middur 0.1 (i.e. active for 0.1 second or less within that minute), minute is considered inactive
+
 
 
 # function legacyFingerprintMid(...) --------------------------------------
@@ -70,8 +73,9 @@ legacyFingerprintMid <- function(mid,
   ## for each parameter, calculate
   # mean of controls
   # sd of controls
-  # Z-score for each larva
-  # mean, sd, sem of those Z-scores
+  # mean of treated
+  # Z-score
+  # see note above, would have been better to calculate individual Z-score for each larva then mean ?? SEM, but copying SCRAP.m
   zsl <- lapply(paral, function(pa) {
     
     # loop through the windows we need to calculate
@@ -101,16 +105,23 @@ legacyFingerprintMid <- function(mid,
   row.names(zs) <- NULL
   
   # pivot longer so that we have just one Z-score column
+  
+  # we will call the Z-score column YYMMDD_BX_treGrp
+  # get the YYMMDD_BX from the genopath
+  print(basename(genopath))
+  ybt <- paste(substr(basename(genopath), 1, 9), treGrp, sep='_')
+  
   zs <- zs %>%
     pivot_longer(-parameter,
                  names_to='win',
-                 values_to='zsco')
+                 values_to=ybt)
   
   ### here we need to add parameters total day waking and total night waking
   # (I do not know why this parameter is there, I do not think that doing a quick operation on two existing parameters counts as a new parameter)
   # (but it is in the original fingerprint, so here it is)
   # from what I understand, it is, for each fish, the sum day1 waking activity + day2 waking activity
   # we did not calculate it in calculateParameters because it is not defined for *one* day or night
+  # EDIT: decided to delete those parameters, see comments for rationale
   
   # now just add column uparam
   zs <- zs %>%
@@ -207,7 +218,6 @@ calculateParameters <- function(mid,
   
   # return this list
   return(paral)
-  
 }
 
 
@@ -252,9 +262,11 @@ averageWaking_onefish <- function(mc) {
 # which here is simply counting number of values <= 0.1
 sleep_onefish <- function(mc) {
   
-  return( length(which(mc <= 0.1)) )
+  return( length(which(mc <= inaThr)) )
   
 }
+# therefore, units is minutes
+# (not hours like in FramebyFrame)
 
 
 #### sleepBout ####
@@ -263,7 +275,7 @@ sleep_onefish <- function(mc) {
 sleepBout_onefish <- function(mc) {
   
   # first convert to TRUE = asleep frame & FALSE = not asleep frame
-  mcb <- (mc <= 0.1) # b for booleans
+  mcb <- (mc <= inaThr) # b for booleans
   
   # then convert to transitions, which we can do by diff the booleans
   # FALSE is 0, TRUE is 1
@@ -294,7 +306,7 @@ sleepBout_onefish <- function(mc) {
 # but this is not how SCRAP.m is coded, and goal here is to replicate exactly
 sleepLatency_onefish <- function(mc) {
 
-  lat <- which(mc < 0.1)[1] -1 -1
+  lat <- which(mc <= inaThr)[1] -1 -1
   
   # exception: if first datapoint is inactive, it seems that SCRAP.m returns 1
   # in fact, it seems it never returns 0, always 1
@@ -322,7 +334,7 @@ sleepLatency_onefish <- function(mc) {
 sleepLength_onefish <- function(mc) {
   
   # first convert to TRUE = asleep frame & FALSE = not asleep frame
-  mcb <- (mc <= 0.1) # b for booleans
+  mcb <- (mc <= inaThr) # b for booleans
   
   # then convert to transitions, which we can do by diff the booleans
   # FALSE is 0, TRUE is 1
