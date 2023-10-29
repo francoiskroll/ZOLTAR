@@ -23,9 +23,26 @@ ___
 
 ## Tutorial
 
+> Just want to try the app? You can jump to step 2• by downloading the sample data available in the [in the app](https://francoiskroll.shinyapps.io/zoltar/).
+
+### 0• Do your experiment
+
+Currently, ZOLTAR expects at least:
+* day0 (incomplete)
+* night0
+* day1
+* night1
+* day2
+* night2  
+* day3 (incomplete)
+
+Each day being 14 hr and each night being 10 hr. ZOLTAR will analyse day1, day2, and night1, night2. Night0 is excluded as habituation period. The experiment can be longer but additional days/nights are not analysed.
+
+Rihel et al., 2010 started treatment with small molecules in the morning of 4 dpf, then behaviour tracking at 11 PM evening of 4 dpf. We prefer to start the experiment at 5 dpf as it gives a bit more time to any 'late' larvae to inflate its swim bladder. In our case, the experiment thus stops in the morning of 8 dpf. No feeding is required if not extending the experiment past that point.  
+
 ### 1• Prepare your data in 'middur' format
 
-> In a hurry? As a test, you can skip to step 2• by downloading the sample data available in the [in the app](https://francoiskroll.shinyapps.io/zoltar/).
+> Just want to try the app? You can skip to step 2• by downloading the sample data available in the [in the app](https://francoiskroll.shinyapps.io/zoltar/).
 
 Preparing your data in the correct format requires the [FramebyFrame R package](https://github.com/francoiskroll/FramebyFrame).  
 
