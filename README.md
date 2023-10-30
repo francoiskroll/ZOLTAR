@@ -79,4 +79,4 @@ ZOLTAR will read the group names from your genotype files. Tell it which group i
 
 ### 4• Press Go!
 
-Yes, do it.
+You should see your results appear in ~ 7 min.

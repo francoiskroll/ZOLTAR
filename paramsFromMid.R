@@ -60,11 +60,12 @@ legacyFingerprintMid <- function(mid,
                                  treGrp,
                                  conGrp,
                                  nights=c('night1','night2'),
-                                 days=c('day1','day2')) {
+                                 days=c('day1','day2'),
+                                 suns=NA) {
   
   ## calculate parameters
   # we get a list, where each slot is one parameter table
-  paral <- calculateParameters(mid=mid, genopath=genopath)
+  paral <- calculateParameters(mid=mid, genopath=genopath, suns=suns)
   
   # check that treGrp & conGrp are correct
   if(! treGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: treGrp', treGrp, 'was not found in data. \n')
@@ -138,7 +139,8 @@ legacyFingerprintMid <- function(mid,
 # calculates parameter for each well and each time window
 
 calculateParameters <- function(mid,
-                                genopath) {
+                                genopath,
+                                suns) {
   
   # parameters are
   allparameters <- c('sleep',
@@ -150,7 +152,18 @@ calculateParameters <- function(mid,
   
   
   ### split by day/night
-  dn <- splitMidbyDayNight(mid)
+  # if suns is not given, we do the automatic way
+  if(is.na(suns[1])) {
+    # NOTE, as of 30/10/2023
+    # ZOLTAR never calls splitMidbyDayNight
+    # it calls splitMidbyWoi with defaults set in app.R
+    # (default settings will give the same output)
+    dn <- splitMidbyDayNight(mid)
+  } else {
+    dn <- splitMidbyWoi(mid,
+                        suns)
+  }
+  # then the rest can proceed as normal either way
   
   # how many time columns do we have?
   timecols <- which(grepl("^f+[[:digit:]]", colnames(dn[[1]])))[1] - 1
@@ -382,6 +395,16 @@ sleepLength_onefish <- function(mc) {
 
 # function splitMidbyDayNight(...) ----------------------------------------
 
+# NOTE, as of 30/10/2023
+# this function is not called by the ZOLTAR app anymore
+# it calls splitMidbyWoi with default as
+# 24, 38
+# 38, 48
+# 48, 62
+# 62, 72
+# which gives the same output
+# will leave it as other code uses it
+
 # this function splits middur data as a big table, where
 # columns are fish (after a few time columns)
 # rows are minutes
@@ -476,6 +499,76 @@ findLightTransitionMinute <- function(Zeitgeberdurations,
   } else {
     return(tfra)
   }
+  
+}
+
+
+
+# function splitMidbyWoi(...) ------------------------------------------
+
+# alternative to splitMidbyDayNight is to split by custom times given by the user
+# ! woi should still represent, as best as possible, days and nights as we are matching to Rihel et al. 2010.
+
+# this function splits middur data as a big table, where
+# columns are fish (after a few time columns)
+# rows are minutes
+# into a list where each element is middur data for one woi (day/night defined by the user)
+
+# will get a vector start1, end1, start2, end2, etc.
+# will assume alternating day/night/...
+
+# suns are sunrises/sunsets given by user
+
+splitMidbyWoi <- function(mid,
+                          suns) {
+  
+  # for each light transition in zth (suns), detect the closest minute
+  # we want the minute just before the transition
+  # e.g. for 24 hrs, we want ~ 23.99
+  # tramin = transition minutes
+  tramin <- sapply(suns, function(sun) {
+    findLightTransitionMinute(Zeitgeberdurations=mid$zhrs,
+                              transitionHour=sun)
+  })
+  # make tramin in a small table
+  # where each row is one day/night
+  # and two columns: start / end
+  # will simplify below
+  # column `start` are all uneven indices; column `stop` are all even indices
+  # total length should be even, so we can do:
+  tramin <- data.frame(start=tramin[seq(1, length(tramin)-1, 2)],
+                       stop=tramin[seq(2, length(tramin), 2)])
+  
+  
+  
+  # preallocate list dn for day/night
+  # each slot will be middur data for one day or night
+  # each day/night is defined by one start and one stop, so just divide by 2 to know number of days/nights
+  dn <- vector(mode='list', length=nrow(tramin))
+  # ! this will skip any day or night that is not full
+  # put appropriate names
+  # for now, will force user in app to simply give day1, night1, day2, night2
+  # so will set it this way
+  # but could be more flexible in the future
+  names(dn) <- c('day1', 'night1', 'day2', 'night2')
+  
+  # take the first few names according to how many we need
+  # names(dn) <- dn_nms[1:length(dn)]
+  
+  # fill the list
+  # for each window, we take from row just after transition until row just before transition
+  # e.g. night0 will be something like: 14.01 hr until 23.99 hr
+  # as we are dealing with one-minute binned data, there are not too many rows, so convert data.table to dataframe which I find easier
+  
+  # loop through small table tramin
+  # for each row, we take start and stop
+  # and that slice that chunk of data from mid
+  for(w in 1:nrow(tramin)) {
+    dn[[w]] <- as.data.frame(mid[ (tramin[w, 'start'] + 1) : (tramin[w, 'stop']) , ])
+  }
+  
+  # return the list
+  return(dn)
   
 }
 

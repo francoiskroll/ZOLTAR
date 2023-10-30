@@ -32,7 +32,8 @@ source('ggEnrich.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-ndraws <- 10000
+# ndraws <- 10000
+ndraws <- 2
 alphaThr <- 0.2
 
 # set maximum upload to 100 Mb
@@ -115,7 +116,31 @@ ui <- fluidPage(
       
       ## cite us!
       p(''),
-      p('Cite us!')
+      p('Cite us!'),
+      
+      
+      ## advanced settings panel
+      checkboxInput("show_panel", 'Advanced settings', value = FALSE),
+      
+      # conditional panel to show/hide advanced settings
+      conditionalPanel(
+        condition = "input.show_panel == true",
+        fluidRow(
+          
+          column(5, numericInput('day1_start', 'day1 start', value=24)),
+          column(5, numericInput('day1_stop', 'day1 stop', value=38)),
+          
+          column(5, numericInput('night1_start', 'night1 start', value=38)),
+          column(5, numericInput('night1_stop', 'night1 stop', value=48)),
+          
+          column(5, numericInput('day2_start', 'day2 start', value=48)),
+          column(5, numericInput('day2_stop', 'day2 stop', value=62)),
+          
+          column(5, numericInput('night2_start', 'night2 start', value=62)),
+          column(5, numericInput('night2_stop', 'night2 stop', value=72)),
+        )
+        #numericInput('day1_start', h6(''), value=24, min=0, max=NA, step=0.5),
+      ),
       
     ),
     
@@ -303,7 +328,11 @@ server <- function(input, output, session) {
                                                treGrp=input$treGrp_select,
                                                conGrp=input$conGrp_select,
                                                nights=c('night1', 'night2'),
-                                               days=c('day1', 'day2'))
+                                               days=c('day1', 'day2'),
+                                               suns=c(input$day1_start, input$day1_stop,
+                                                      input$night1_start, input$night1_stop,
+                                                      input$day2_start, input$day2_stop,
+                                                      input$night2_start, input$night2_stop))
                    
                    # issue here, function legacyFingerprintMid uses genotype file path to create column as YYMMDD_treGrp
                    # but when running as app, genotype file path is 1.txt, so does not work
