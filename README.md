@@ -42,8 +42,6 @@ Rihel et al., 2010 started treatment with small molecules in the morning of 4 dp
 
 ### 1• Prepare your data in 'middur' format
 
-> Just want to try the app? You can skip to step 2• by downloading the sample data available in the [in the app](https://francoiskroll.shinyapps.io/zoltar/).
-
 Preparing your data in the correct format requires the [FramebyFrame R package](https://github.com/francoiskroll/FramebyFrame).  
 
 You will need the RAWs.csv file prepared using `vpSorter(...)`. Please follow the instructions there.  
