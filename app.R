@@ -124,7 +124,7 @@ ui <- fluidPage(
       # conditional panel to show/hide advanced settings
       conditionalPanel(
         condition = 'input.show_panel == true',
-        fluidRow(
+        fixedRow(
           
           column(5, numericInput('day1_start', 'day1 start', value=24)),
           column(5, numericInput('day1_stop', 'day1 stop', value=38)),
