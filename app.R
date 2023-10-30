@@ -119,11 +119,11 @@ ui <- fluidPage(
       
       
       ## advanced settings panel
-      checkboxInput("show_panel", 'Advanced settings', value = FALSE),
+      checkboxInput('show_panel', 'Advanced settings', value = FALSE),
       
       # conditional panel to show/hide advanced settings
       conditionalPanel(
-        condition = "input.show_panel == true",
+        condition = 'input.show_panel == true',
         fluidRow(
           
           column(5, numericInput('day1_start', 'day1 start', value=24)),
@@ -139,6 +139,8 @@ ui <- fluidPage(
           column(5, numericInput('night2_stop', 'night2 stop', value=72)),
         )
       ),
+      
+      p('Need help? francois@kroll.be', style='color:#999999')
       
     ),
     
@@ -165,42 +167,109 @@ ui <- fluidPage(
         
         tabPanel('Drugs ranked',
                  p(''),
-                 p('• Click on Cosine column to rank by increasing or decreasing'),
-                 p('• Click on a row to reveal fingerprint plot.'),
+                 ## show details panel
+                 checkboxInput('showdetails_Drugs', 'Show details', value=FALSE),
+                 
+                 # conditional panel to show/hide details
+                 conditionalPanel(
+                   condition = 'input.showdetails_Drugs == true',
+                   p('• Click on Cosine column to rank by increasing or decreasing'),
+                   p('• Click on a row to reveal fingerprint plot.'),
+                   p(''),
+                   p(strong(em('• Cosine')), 'cosine similarity score (min. −1, max. +1) between the small molecule fingerprint and the query fingerprint.'),
+                   p(strong(em('• Original name')), 'original compound name from Rihel et al. 2010 data.'),
+                   p(strong(em('• Name')), 'simplified name.'),
+                   p(strong(em('• PubChem CID')), 'PubChem compound ID'),
+                   p(strong(em('• TTD ID')), 'Therapeutic Target Database compound ID'),
+                   p(strong(em('• Rank from 0')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• Rank eq.')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• Molecular weight')), 'compound\'s molecular weight in g/mol.'),
+                   p(strong(em('• Shortlisted')), 'whether this compound was labelled as "shortlisted" by Rihel et al., 2010. A compound was shortlisted if it affected at least one behavioural parameter with a large effect size and/or affected the same parameter in the same direction across the two days/nights.'),
+                   p(strong(em('• Structural cluster')), 'structural cluster from Rihel et al., 2010.'),
+                   p('• Data from', a(href='https://www.science.org/doi/abs/10.1126/science.1183090', HTML('Rihel et al., 2010. <em>Science</em>',)), ', reorganised by Kroll et al., 2023.')
+                 ), # closes conditional panel
                  downloadButton('vdbr_dl', 'download'),
                  p(''),
                  DTOutput('vdbr_dis')),
         
         tabPanel('Indications',
                  p(''),
-                 p(strong(em('• N examples')), 'number of fingerprints annotated with this Indication. This can include replicate experiments with the same compound.'),
-                 p(strong(em('• Sum of ranks')), 'xxx.'),
-                 p(strong(em('• Best possible sum of ranks')), 'xxx.'),
-                 p(strong(em('• Fraction of best possible')), 'xxx.'),
-                 p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
-                 p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
-                 p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
-                 p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
-                 p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
-                 p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
-                 p(strong(em('• KS pval')), 'p-value statistic of the Kolmogorov–Smirnov (KS) test.'),
-                 p(strong(em('• KS Bon. sign.')), 'whether the KS p-value remains significant after Bonferroni correction.'),
-                 p(strong(em('• KS Ben. sign.')), 'whether the KS p-value remains significant after Benjamini-Hochberg correction.'),
-                 p('• Source: Therapeutic Target Database'),
+                 
+                 ## show details panel
+                 checkboxInput('showdetails_Indications', 'Show details', value=FALSE),
+                 
+                 # conditional panel to show/hide details
+                 conditionalPanel(
+                   condition = 'input.showdetails_Indications == true',
+                   p(strong(em('• N examples')), 'number of fingerprints annotated with this Indication. This can include replicate experiments with the same compound.'),
+                   p(strong(em('• Sum of ranks')), 'sum of the ranks of the N fingerprints with this Indication.'),
+                   p(strong(em('• Best possible sum of ranks')), 'sum of ranks if the N fingerprints (N examples) were at the most extreme positions. For example, if N examples = 4, it would represent the sum of ranks if the fingerprints with this Indication had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
+                   p(strong(em('• Fraction of best possible')), '= Sum of ranks/Best possible sum of ranks, to give a measure of enrichment that is somewhat normalised, i.e. comparable between Indications which have different N examples.'),
+                   p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
+                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
+                   p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
+                   p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
+                   p(strong(em('• KS pval')), 'p-value statistic of the Kolmogorov–Smirnov (KS) test.'),
+                   p(strong(em('• KS Bon. sign.')), 'whether the KS p-value remains significant after Bonferroni correction.'),
+                   p(strong(em('• KS Ben. sign.')), 'whether the KS p-value remains significant after Benjamini-Hochberg correction.'),
+                   p('• Source of annotations: Therapeutic Target Database'),
+                 ), # closes conditional panel
                  downloadButton('ind_dl', 'download'),
                  p(''),
                  DTOutput('ind_dis')),
         
         tabPanel('Targets',
                  p(''),
-                 p('Source of annotations: Therapeutic Target Database'),
+                 ## show details panel
+                 checkboxInput('showdetails_Targets', 'Show details', value=FALSE),
+                 
+                 # conditional panel to show/hide details
+                 conditionalPanel(
+                   condition = 'input.showdetails_Targets == true',
+                   p(strong(em('• N examples')), 'number of fingerprints annotated with this Target protein. This can include replicate experiments with the same compound.'),
+                   p(strong(em('• Sum of ranks')), 'sum of the ranks of the N fingerprints with this Target protein'),
+                   p(strong(em('• Best possible sum of ranks')), 'sum of ranks if the N fingerprints (N examples) were at the most extreme positions. For example, if N examples = 4, it would represent the sum of ranks if the fingerprints with this Target had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
+                   p(strong(em('• Fraction of best possible')), '= Sum of ranks/Best possible sum of ranks, to give a measure of enrichment that is somewhat normalised, i.e. comparable between Targets which have different N examples.'),
+                   p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
+                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
+                   p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
+                   p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
+                   p(strong(em('• KS pval')), 'p-value statistic of the Kolmogorov–Smirnov (KS) test.'),
+                   p(strong(em('• KS Bon. sign.')), 'whether the KS p-value remains significant after Bonferroni correction.'),
+                   p(strong(em('• KS Ben. sign.')), 'whether the KS p-value remains significant after Benjamini-Hochberg correction.'),
+                   p('• Source of annotations: Therapeutic Target Database'),
+                 ), # closes conditional panel
                  downloadButton('ttar_dl', 'download'),
                  p(''),
                  DTOutput('ttar_dis')),
         
         tabPanel('KEGG pathways',
                  p(''),
-                 p('Source: Therapeutic Target Database'),
+                 ## show details panel
+                 checkboxInput('showdetails_KEGG', 'Show details', value=FALSE),
+                 
+                 # conditional panel to show/hide details
+                 conditionalPanel(
+                   condition = 'input.showdetails_KEGG == true',
+                   p(strong(em('• N examples')), 'number of fingerprints annotated with this KEGG pathway. This can include replicate experiments with the same compound.'),
+                   p(strong(em('• Sum of ranks')), 'sum of the ranks of the N fingerprints with this KEGG pathway'),
+                   p(strong(em('• Best possible sum of ranks')), 'sum of ranks if the N fingerprints (N examples) were at the most extreme positions. For example, if N examples = 4, it would represent the sum of ranks if the fingerprints with this KEGG pathway had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
+                   p(strong(em('• Fraction of best possible')), '= Sum of ranks/Best possible sum of ranks, to give a measure of enrichment that is somewhat normalised, i.e. comparable between KEGG pathways which have different N examples.'),
+                   p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
+                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
+                   p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
+                   p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
+                   p(strong(em('• KS pval')), 'p-value statistic of the Kolmogorov–Smirnov (KS) test.'),
+                   p(strong(em('• KS Bon. sign.')), 'whether the KS p-value remains significant after Bonferroni correction.'),
+                   p(strong(em('• KS Ben. sign.')), 'whether the KS p-value remains significant after Benjamini-Hochberg correction.'),
+                   p('• Source of annotations: Therapeutic Target Database'),
+                 ), # closes conditional panel
                  downloadButton('keg_dl', 'download'),
                  p(''),
                  DTOutput('keg_dis')),
