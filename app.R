@@ -34,7 +34,6 @@ Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drug
 
 # ndraws <- 10000
 ndraws <- 2
-alphaThr <- 0.2
 
 # set maximum upload to 100 Mb
 options(shiny.maxRequestSize = 100*1024^2)
@@ -139,7 +138,6 @@ ui <- fluidPage(
           column(5, numericInput('night2_start', 'night2 start', value=62)),
           column(5, numericInput('night2_stop', 'night2 stop', value=72)),
         )
-        #numericInput('day1_start', h6(''), value=24, min=0, max=NA, step=0.5),
       ),
       
     ),
@@ -175,24 +173,37 @@ ui <- fluidPage(
         
         tabPanel('Indications',
                  p(''),
-                 p('Source: Therapeutic Target Database'),
+                 p(strong(em('• N examples')), 'number of fingerprints annotated with this Indication. This can include replicate experiments with the same compound.'),
+                 p(strong(em('• Sum of ranks')), 'xxx.'),
+                 p(strong(em('• Best possible sum of ranks')), 'xxx.'),
+                 p(strong(em('• Fraction of best possible')), 'xxx.'),
+                 p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
+                 p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                 p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
+                 p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
+                 p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
+                 p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
+                 p(strong(em('• KS pval')), 'p-value statistic of the Kolmogorov–Smirnov (KS) test.'),
+                 p(strong(em('• KS Bon. sign.')), 'whether the KS p-value remains significant after Bonferroni correction.'),
+                 p(strong(em('• KS Ben. sign.')), 'whether the KS p-value remains significant after Benjamini-Hochberg correction.'),
+                 p('• Source: Therapeutic Target Database'),
                  downloadButton('ind_dl', 'download'),
                  p(''),
-                 DTOutput('ind_dis')) ,
+                 DTOutput('ind_dis')),
         
         tabPanel('Targets',
                  p(''),
-                 p('Source: Therapeutic Target Database'),
+                 p('Source of annotations: Therapeutic Target Database'),
                  downloadButton('ttar_dl', 'download'),
                  p(''),
-                 DTOutput('ttar_dis')) ,
+                 DTOutput('ttar_dis')),
         
         tabPanel('KEGG pathways',
                  p(''),
                  p('Source: Therapeutic Target Database'),
                  downloadButton('keg_dl', 'download'),
                  p(''),
-                 DTOutput('keg_dis')) ,
+                 DTOutput('keg_dis')),
         
         # 04/04/2023 switching off STITCH for now, needs a bit more work
         # tabPanel('zebrafish STITCH',
