@@ -39,11 +39,11 @@ cleanDrugsRanked <- function(vdbr) {
   vdbr$rankeq <- round(vdbr$rankeq, digits=2)
   
   ## re-arrange columns
-  vdbr <- vdbr[, c('cos', 'name', 'cleanm', 'cid', 'tid', 'ranks', 'rankeq', 'MolecularWeight', 'inSmall', 'structCluster')]
+  vdbr <- vdbr[, c('cos', 'name', 'cleanm', 'cid', 'tid', 'ranks', 'rankeq', 'library', 'concentration', 'MolecularWeight', 'inSmall', 'structCluster')]
   
   ## rename columns
   colnames(vdbr) <- c('Cosine', 'Original name', 'Name', 'PubChem CID', 'TTD ID',
-                      'Rank from 0', 'Rank eq.','Molecular weight', 'Shortlisted', 'Structural cluster')
+                      'Rank from 0', 'Rank eq.', 'Library', 'Concentration', 'Molecular weight', 'Shortlisted', 'Structural cluster')
   
   ## return
   return(vdbr)

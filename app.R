@@ -32,8 +32,8 @@ source('ggEnrich.R')
 Sys.setlocale("LC_ALL","C") # avoids an issue when printing table of ranked drugs, probably because of odd characters in original drug names
 # solution StackOverflow question 61656119
 
-# ndraws <- 10000
-ndraws <- 2
+ndraws <- 10000
+# ndraws <- 2
 
 # set maximum upload to 100 Mb
 options(shiny.maxRequestSize = 100*1024^2)
@@ -43,6 +43,34 @@ options(shiny.maxRequestSize = 100*1024^2)
 # https://www.r-bloggers.com/2015/07/persistent-data-storage-in-shiny-apps/
 
 
+
+
+# chunks of code for dropdown menus ---------------------------------------
+
+js <- "
+$(document).ready(function() {
+
+    var j = 1;
+
+    $('#icon').on('click', function() {
+        j = j + 1;
+        if (j % 2 === 0) {
+            Shiny.setInputValue('show_panel', true);
+            $('#icon')[0].innerHTML = $('#icon')[0].innerHTML.replaceAll('-right', '-down');
+        } else {
+            Shiny.setInputValue('show_panel', false);
+            $('#icon')[0].innerHTML = $('#icon')[0].innerHTML.replaceAll('-down', '-right');
+        }
+    });
+
+    $('#icon').hover(function() {
+        $(this).css('cursor', 'pointer');
+    });
+
+});
+"
+
+
 # ui ----------------------------------------------------------------------
 
 
@@ -50,7 +78,7 @@ ui <- fluidPage(
   
   #theme=bslib::bs_theme(bootswatch='sandstone'),
   #theme=bslib::bs_theme(bootswatch='united'), # I quite like it but maybe the font is too childish
-  # theme=bslib::bs_theme(bootswatch='simplex'),
+  #theme=bslib::bs_theme(bootswatch='simplex'),
   
   # can also set theme manually
   # theme=bslib::bs_theme(
@@ -117,29 +145,33 @@ ui <- fluidPage(
       p(''),
       p('Cite us!'),
       
-      
       ## advanced settings panel
-      checkboxInput('show_panel', 'Advanced settings', value = FALSE),
+      # from https://stackoverflow.com/questions/77387537/how-can-i-implement-a-conditional-panel-revealed-by-clicking-an-arrowhead/77390635#77390635
+      #HTML('<br>'),
+      tags$script(HTML(js)),
       
-      # conditional panel to show/hide advanced settings
-      conditionalPanel(
-        condition = 'input.show_panel == true',
-        fixedRow(
-          
-          column(5, numericInput('day1_start', 'day1 start', value=24)),
-          column(5, numericInput('day1_stop', 'day1 stop', value=38)),
-          
-          column(5, numericInput('night1_start', 'night1 start', value=38)),
-          column(5, numericInput('night1_stop', 'night1 stop', value=48)),
-          
-          column(5, numericInput('day2_start', 'day2 start', value=48)),
-          column(5, numericInput('day2_stop', 'day2 stop', value=62)),
-          
-          column(5, numericInput('night2_start', 'night2 start', value=62)),
-          column(5, numericInput('night2_stop', 'night2 stop', value=72)),
-        )
-      ),
+      h5(div(id = "icon", icon("angle-right", style = "color: #7d3040;"),
+             "Advanced settings")),
       
+      conditionalPanel(condition = "input.show_panel === true",
+
+                       fixedRow(
+                         
+                         column(5, numericInput('day1_start', 'day1 start', value=24)),
+                         column(5, numericInput('day1_stop', 'day1 stop', value=38)),
+                         
+                         column(5, numericInput('night1_start', 'night1 start', value=38)),
+                         column(5, numericInput('night1_stop', 'night1 stop', value=48)),
+                         
+                         column(5, numericInput('day2_start', 'day2 start', value=48)),
+                         column(5, numericInput('day2_stop', 'day2 stop', value=62)),
+                         
+                         column(5, numericInput('night2_start', 'night2 start', value=62)),
+                         column(5, numericInput('night2_stop', 'night2 stop', value=72)),
+                       )),
+      
+      ## need help?
+      HTML('<br>'), # empty line
       p('Need help? francois@kroll.be', style='color:#999999')
       
     ),
@@ -183,9 +215,11 @@ ui <- fluidPage(
                    p(strong(em('• TTD ID')), 'Therapeutic Target Database compound ID'),
                    p(strong(em('• Rank from 0')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
                    p(strong(em('• Rank eq.')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• Library')), 'source library of the compound.'),
+                   p(strong(em('• Concentration')), 'approximate concentration at which the compound was tested.'),
                    p(strong(em('• Molecular weight')), 'compound\'s molecular weight in g/mol.'),
                    p(strong(em('• Shortlisted')), 'whether this compound was labelled as "shortlisted" by Rihel et al., 2010. A compound was shortlisted if it affected at least one behavioural parameter with a large effect size and/or affected the same parameter in the same direction across the two days/nights.'),
-                   p(strong(em('• Structural cluster')), 'structural cluster from Rihel et al., 2010.'),
+                   p(strong(em('• Structural cluster')), 'clusters of compounds with similar structures based on Tanimoto score, see Rihel et al., 2010.'),
                    p('• Data from', a(href='https://www.science.org/doi/abs/10.1126/science.1183090', HTML('Rihel et al., 2010. <em>Science</em>',)), ', reorganised by Kroll et al., 2023.')
                  ), # closes conditional panel
                  downloadButton('vdbr_dl', 'download'),
