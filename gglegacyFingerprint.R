@@ -30,6 +30,8 @@ gglegacyFingerprint <- function(lFgp,
                                 xtextOrNo=TRUE,
                                 yTitleSize=9,
                                 paramNumOrNo=FALSE,
+                                paramSize=7,
+                                ynumSize=7,
                                 nightBgOrNo=TRUE,
                                 ymin,
                                 ymax,
@@ -137,14 +139,14 @@ gglegacyFingerprint <- function(lFgp,
     {if(ynameOrNo) ylab(yname)} +
 
     {if(!ytextOrNo) theme(axis.text.y=element_blank())} +
-    {if(ytextOrNo) theme(axis.text.y=element_text(size=7))} +
+    {if(ytextOrNo) theme(axis.text.y=element_text(size=ynumSize))} +
     
     # add X axis labels (uparam)
-    {if(xtextOrNo & !paramNumOrNo) theme(axis.text.x=element_text(size=7, angle=45, hjust=1))} +
+    {if(xtextOrNo & !paramNumOrNo) theme(axis.text.x=element_text(size=paramSize, angle=45, hjust=1))} +
     
     # or X axis labels as parameter numbers
     {if(paramNumOrNo) scale_x_discrete(labels=match(lFgp$parameter, paramOrder))} +
-    {if(paramNumOrNo) theme(axis.text.x=element_text(size=7, margin=margin(t=-1.5)))} +
+    {if(paramNumOrNo) theme(axis.text.x=element_text(size=paramSize, margin=margin(t=-1.5)))} +
     
     # or turn off X axis labels completely
     {if(!xtextOrNo) theme(axis.text.x=element_blank())} +

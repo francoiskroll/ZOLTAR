@@ -333,6 +333,10 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
+  ### stop app if tab is closed
+  # otherwise, if user stops ongoing run, they cannot open a new one
+  # session$onSessionEnded(stopApp)
+  
   #### set-up download of sample data
   output$zip_dl <- downloadHandler( # download TTD targets
     filename=function() {
@@ -498,6 +502,8 @@ server <- function(input, output, session) {
                    xtextOrNo=TRUE,
                    yTitleSize=14,
                    paramNumOrNo=FALSE,
+                   paramSize=10,
+                   ynumSize=12,
                    nightBgOrNo=TRUE,
                    ymin=-3,
                    ymax=3,
