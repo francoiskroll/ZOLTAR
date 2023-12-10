@@ -39,9 +39,8 @@ library(lsa)
 library(openxlsx)
 library(data.table)
 library(stringr)
-
-
-
+library(tibble)
+library(dplyr)
 
 
 # function testAllAnnotations(...) ----------------------------------------
@@ -162,6 +161,8 @@ drugEnrichment <- function(vdbr,
                            maxPval=NA,
                            statsExport=NA) {
   
+  source('drawEnrich_v5.R')
+  
   
   ### swap each drug for its annotations
   if(annotation=='indications') {
@@ -179,7 +180,7 @@ drugEnrichment <- function(vdbr,
   } else if(annotation=='humanGO') {
     annotationCol <- 'go_id'
   }
-  
+
   radf <- swapDrugsforAnnotations(vdbr=vdbr,
                                   namesPath=namesPath,
                                   annotationPath=annotationPath,
@@ -196,17 +197,17 @@ drugEnrichment <- function(vdbr,
     
     ua <- uan[a]
     
-    ## loading bar
-    # how far are we in %?
-    perpro <- round((a/length(uan)) * 100)
-    # if 0, replace by 1 to keep below simple
-    if(perpro==0) {
-      perpro <- 1
-    }
-    # that is how many _ with replace by # in the loading bar
-    lobar <- paste0( paste(rep('#', perpro), collapse='') , paste(rep('_', 100-perpro), collapse='') , collapse='')
-    cat('\t \t \t \t', lobar, '\n')
-    cat('\t \t \t \t >>> Testing', annotation,':', ua,'\n')
+    # ## loading bar
+    # # how far are we in %?
+    # perpro <- round((a/length(uan)) * 100)
+    # # if 0, replace by 1 to keep below simple
+    # if(perpro==0) {
+    #   perpro <- 1
+    # }
+    # # that is how many _ with replace by # in the loading bar
+    # lobar <- paste0( paste(rep('#', perpro), collapse='') , paste(rep('_', 100-perpro), collapse='') , collapse='')
+    # # cat('\t \t \t \t', lobar, '\n')
+    # # cat('\t \t \t \t >>> Testing', annotation,':', ua,'\n')
     
     sampleEnrich(radf=radf,
                  annotationCol=annotationCol,
@@ -218,6 +219,7 @@ drugEnrichment <- function(vdbr,
                  maxPval=maxPval)
     
   })
+  
   anr <- as.data.frame(rbindlist(anr))
   
   cat('\n \t \t \t \t Correction of random draws p-values \n')
@@ -329,6 +331,8 @@ drugEnrichment <- function(vdbr,
   return(anr)
   
 }
+
+
 # function rankDrugDb(...) ------------------------------------------------
 
 # takes legacy fingerprint as input and ranks the drug database
@@ -472,12 +476,6 @@ rankDrugDb <- function(legacyFgp,
 }
 
 
-
-
-
-
-
-
 # function swapDrugsforAnnotations(...) -----------------------------------
 # this is a common function to switch the compounds for their annotations
 # previously, was a bunch of functions such as rankIndications and rankSTITCHzebrafish
@@ -601,7 +599,11 @@ sampleEnrich <- function(radf,
   nano <- length(which(radf[,annotationCol]==testAnnotation))
   # is that enough?
   if (nano < minNex) {
-    cat('\t \t \t \t >>> Fewer than', minNex, 'examples, skip \n')
+    
+    # Incredibly, cat() below was the source of a very challenging issue when using callr::r_bg to run long tasks in background
+    # it would somehow cause process to go on forever!
+    # cat('\t \t \t \t >>> Fewer than', minNex, 'examples, skip \n')
+    
     statres <- data.frame(annotation=testAnnotation, nexamples=nano,
                           sumRanks=NA, sumRanksnorm=NA, bestPos=NA, sumRanksFracPos=NA,
                           sumRanksDir=NA, sumRanksDirnorm=NA,
@@ -610,7 +612,6 @@ sampleEnrich <- function(radf,
     return(statres)
   }
   # if enough examples, will continue below
-  
   
   ### calculate sum of ranks for given annotation
   # this gives a measure of "how distant from 0, on either side"

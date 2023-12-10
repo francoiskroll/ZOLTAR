@@ -16,6 +16,9 @@ library(ggplot2)
 library(bslib)
 library(DT)
 
+library(callr)
+library(shinyjs)
+
 
 # functions ---------------------------------------------------------------
 
@@ -252,6 +255,7 @@ ui <- fluidPage(
                  ), # closes conditional panel
                  downloadButton('ind_dl', 'download'),
                  p(''),
+                 uiOutput('ind_waitMessage'),
                  DTOutput('ind_dis')),
         
         tabPanel('Targets',
@@ -279,6 +283,7 @@ ui <- fluidPage(
                  ), # closes conditional panel
                  downloadButton('ttar_dl', 'download'),
                  p(''),
+                 uiOutput('tar_waitMessage'),
                  DTOutput('ttar_dis')),
         
         tabPanel('KEGG pathways',
@@ -306,6 +311,7 @@ ui <- fluidPage(
                  ), # closes conditional panel
                  downloadButton('keg_dl', 'download'),
                  p(''),
+                 uiOutput('keg_waitMessage'),
                  DTOutput('keg_dis')),
         
         # 04/04/2023 switching off STITCH for now, needs a bit more work
@@ -385,6 +391,9 @@ server <- function(input, output, session) {
   #### start stuff when user presses Go button ####
   observeEvent(input$go_button,
                {
+                 
+                 disable('go_button') # supposed to disable go button, but I do not see a difference
+                 
                  req(input$mid_drop) # check that middur file is available
                  req(input$geno_drop) # check that genotype file is available
                  
@@ -597,33 +606,76 @@ server <- function(input, output, session) {
                  ###############################################################
                  ### TTD indications ###
                  
+                 # 10/12/2023
+                 # calculations of enrichment are statistics are done in background processes "asynchronously"
+                 # this solves an issue where app could not be reopened when it was processing
+                 # a nice side effect is that it displays results as they become available
+                 # ideas from
+                 # https://stackoverflow.com/questions/30587883/is-it-possible-to-stop-executing-of-r-code-inside-shiny-without-stopping-the-sh/76005099#76005099
+                 # https://www.r-bloggers.com/2020/04/asynchronous-background-execution-in-shiny-using-callr/
+                 
                  ## calculate enrichment TTD indications
-                 withProgress(message='calculating indications', value=0.3, {
-                   ind <<- drugEnrichment(vdbr=vdbr,
-                                         namesPath='compounds.csv',
-                                         annotationPath='TTDindications.csv',
-                                         annotation='indications',
-                                         whichRank='rankeq',
-                                         minNex=3,
-                                         ndraws=ndraws,
-                                         alphaThr=alphaThr,
-                                         statsExport=NA)
-                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
-                   
-                   ## prepare display version
-                   ind_dis <- cleanIndications(ind)
-                   
-                   incProgress(1.0)
+                 # start counter of number of seconds
+                 i_ind <- 1
+                 
+                 # initiate background process
+                 indications_bg <- reactive({
+                   callr::r_bg(
+                     func=drugEnrichment,
+                     args=list(vdbr=vdbr,
+                               namesPath='compounds.csv',
+                               annotationPath='TTDindications.csv',
+                               annotation='indications',
+                               whichRank='rankeq',
+                               minNex=3,
+                               ndraws=ndraws,
+                               alphaThr=0.05,
+                               statsExport=NA),
+                     supervise=TRUE
+                   )
                  })
                  
-                 ## display results
-                 # set-up the table
-                 output$ind_dis <- renderDT(ind_dis,
-                                            selection=list(mode='single', target='row'),
-                                            rownames=FALSE)
-                 # this becomes 'ind_dis' in ui
+                 # collect results, when they are ready
+                 observe({
+                   if (isolate(indications_bg()$is_alive())==FALSE) {
+                     cat('\t \t \t \t >>> Indications done.\n')
+                     
+                     # empty the wait message
+                     output$ind_waitMessage <- renderText({
+                       ''
+                     })
+                     
+                     ind <<- indications_bg()$get_result()
+                     # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
+                     
+                     ## display results
+                     # set-up the table
+                     
+                     ## prepare display version
+                     ind_dis <- cleanIndications(ind)
+                     
+                     output$ind_dis <- renderDT(ind_dis,
+                                                selection=list(mode='single', target='row'),
+                                                rownames=FALSE)
+                     # this becomes 'ind_dis' in ui
+                     
+                     ## if results not ready
+                   } else {
+                     # add 1 second to counter
+                     i_ind <<- i_ind+1
+                     cat('\t \t \t \t >>> Waiting for Indications to finish...\n')
+                     
+                     # display wait message
+                     output$ind_waitMessage <- renderText({
+                       paste('Calculations in progress...', i_ind, 'seconds elapsed.')
+                     })
+                     
+                     # try again in 1 sec
+                     invalidateLater(1000) # in milliseconds
+                   }
+                 })
                  
-                 # set-up the download
+                 ## set-up the download
                  output$ind_dl <- downloadHandler( # download indications
                    filename=function() {
                      'indications.csv'
@@ -634,34 +686,70 @@ server <- function(input, output, session) {
                    }
                  )
                  
-                 
                  ###############################################################
                  ### TTD targets ###
                  
                  ## calculate enrichment TTD targets
-                 withProgress(message='calculating targets', value=0.3, {
-                   ttar <<- drugEnrichment(vdbr=vdbr,
-                                           namesPath='compounds.csv',
-                                           annotationPath='TTDtargets.csv',
-                                           annotation='TTDtargets',
-                                           whichRank='rankeq',
-                                           minNex=3,
-                                           ndraws=ndraws,
-                                           alphaThr=alphaThr,
-                                           statsExport=NA)
-                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
-                   
-                   ## prepare the display version
-                   ttar_dis <- cleanTTDtargets(ttar)
-                   
-                   incProgress(1.0)
+                 # start counter of number of seconds
+                 i_tar <- 1
+                 
+                 # initiate background process
+                 targets_bg <- reactive({
+                   callr::r_bg(
+                     func=drugEnrichment,
+                     args=list(vdbr=vdbr,
+                               namesPath='compounds.csv',
+                               annotationPath='TTDtargets.csv',
+                               annotation='TTDtargets',
+                               whichRank='rankeq',
+                               minNex=3,
+                               ndraws=ndraws,
+                               alphaThr=0.05,
+                               statsExport=NA),
+                     supervise=TRUE
+                   )
                  })
                  
-                 # TTD targets statistics report
-                 output$ttar_dis <- renderDT(ttar_dis,
-                                            selection=list(mode='single', target='row'),
-                                            rownames=FALSE)
-                 # this becomes 'tar_dis' in ui
+                 # collect results, when they are ready
+                 observe({
+                   if (isolate(targets_bg()$is_alive())==FALSE) {
+                     cat('\t \t \t \t >>> Targets done.\n')
+                     
+                     # empty the wait message
+                     output$tar_waitMessage <- renderText({
+                       ''
+                     })
+                     
+                     ttar <<- targets_bg()$get_result()
+                     # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
+                     
+                     ## display results
+                     # set-up the table
+                     
+                     ## prepare display version
+                     ttar_dis <- cleanTTDtargets(ttar)
+                     
+                     # TTD targets statistics report
+                     output$ttar_dis <- renderDT(ttar_dis,
+                                                 selection=list(mode='single', target='row'),
+                                                 rownames=FALSE)
+                     # this becomes 'tar_dis' in ui
+                     
+                     ## if results not ready
+                   } else {
+                     # add 1 second to counter
+                     i_tar <<- i_tar+1
+                     cat('\t \t \t \t >>> Waiting for Targets to finish...\n')
+                     
+                     # display wait message
+                     output$tar_waitMessage <- renderText({
+                       paste('Calculations in progress...', i_tar, 'seconds elapsed.')
+                     })
+                     
+                     # try again in 1 sec
+                     invalidateLater(1000) # in milliseconds
+                   }
+                 })
                  
                  # set-up the download
                  output$ttar_dl <- downloadHandler( # download TTD targets
@@ -673,36 +761,72 @@ server <- function(input, output, session) {
                      # Note, we download the full table, not the display version
                    }
                  )
-                 
-                 
+
+
                  ###############################################################
                  ### KEGG pathways ###
-                 
+
                  ## calculate enrichment KEGG pathways
-                 withProgress(message='calculating KEGG pathways', value=0.3, {
-                   keg <<- drugEnrichment(vdbr=vdbr,
-                                         namesPath='compounds.csv',
-                                         annotationPath='TTDkegg.csv',
-                                         annotation='KEGG',
-                                         whichRank='rankeq',
-                                         minNex=3,
-                                         ndraws=ndraws,
-                                         alphaThr=alphaThr,
-                                         statsExport=NA)
-                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
-                   
-                   ## prepare display version
-                   keg_dis <- cleanKEGG(keg)
-                   
-                   incProgress(1.0)
+                 # start counter of number of seconds
+                 i_keg <- 1
+                 
+                 # initiate background process
+                 kegg_bg <- reactive({
+                   callr::r_bg(
+                     func=drugEnrichment,
+                     args=list(vdbr=vdbr,
+                               namesPath='compounds.csv',
+                               annotationPath='TTDkegg.csv',
+                               annotation='KEGG',
+                               whichRank='rankeq',
+                               minNex=3,
+                               ndraws=ndraws,
+                               alphaThr=0.05,
+                               statsExport=NA),
+                     supervise=TRUE
+                   )
                  })
                  
-                 ## display results
-                 # set-up the table
-                 output$keg_dis <- renderDT(keg_dis, # KEGG pathways statistics report
-                                            selection=list(mode='single', target='row'),
-                                            rownames=FALSE)
-                 # this becomes 'keg_dis' in ui
+                 # collect results, when they are ready
+                 observe({
+                   if (isolate(kegg_bg()$is_alive())==FALSE) {
+                     cat('\t \t \t \t >>> KEGG done.\n')
+                     
+                     # empty the wait message
+                     output$keg_waitMessage <- renderText({
+                       ''
+                     })
+                     
+                     keg <<- kegg_bg()$get_result()
+                     # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
+                     
+                     ## display results
+                     # set-up the table
+                     
+                     ## prepare display version
+                     keg_dis <- cleanKEGG(keg)
+                     
+                     # KEGG pathways statistics report
+                     output$keg_dis <- renderDT(keg_dis,
+                                                selection=list(mode='single', target='row'),
+                                                rownames=FALSE)
+                     # this becomes 'keg_dis' in ui
+                     
+                     ## if results not ready
+                   } else {
+                     # add 1 second to counter
+                     i_keg <<- i_keg+1
+                     cat('\t \t \t \t >>> Waiting for KEGG to finish...\n')
+                     
+                     # display wait message
+                     output$keg_waitMessage <- renderText({
+                       paste('Calculations in progress...', i_keg, 'seconds elapsed.')
+                     })
+                     
+                     # try again in 1 sec
+                     invalidateLater(1000) # in milliseconds
+                   }
+                 })
                  
                  # set-up the download
                  output$keg_dl <- downloadHandler( # download KEGG

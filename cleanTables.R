@@ -1,7 +1,7 @@
 #####################################################
 # ~ predPharma Shiny app: small functions to clean up output tables ~
 #
-# ... ... ...
+#
 # Francois Kroll 2023
 # francois@kroll.be
 #####################################################
