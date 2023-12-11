@@ -47,7 +47,6 @@ options(shiny.maxRequestSize = 100*1024^2)
 
 
 
-
 # chunks of code for dropdown menus ---------------------------------------
 
 js <- "
