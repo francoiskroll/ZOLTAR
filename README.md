@@ -42,6 +42,8 @@ Rihel et al., 2010 started treatment with small molecules in the morning of 4 dp
 
 ### 1• Prepare your data in 'middur' format
 
+> Do you already have a DATA.txt file created with a MATLAB script called perl_batch_192.m? ZOLTAR will also accept this file. If you can, I think preparing the middur file from the RAWs.csv as described below is slightly better. If you choose to use DATA.txt files, assume I mean DATA.txt when I mention middur.csv below.
+
 Preparing your data in the correct format requires the [FramebyFrame R package](https://github.com/francoiskroll/FramebyFrame).  
 
 You will need the RAWs.csv file prepared using `vpSorter(...)`. Please follow the instructions there.  
@@ -77,4 +79,4 @@ ZOLTAR will read the group names from your genotype files. Tell it which group i
 
 ### 4• Press Go!
 
-You should see your results appear in ~ 7 min.
+You should see your results gradually appear in a total of ~ 7 min.
