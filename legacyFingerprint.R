@@ -63,7 +63,6 @@ legacyFingerprint <- function(matPath,
   # with each row being one parameter
   # will make it simple to calculate Z-scores
 
-
   ### extract genotype names ##
   genonms <- unlist(mat[,,1]$name)
 
