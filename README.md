@@ -63,7 +63,9 @@ Adjust `freezing` and `burst` to the values you usually use in ZebraLab.
 
 This will generate YYMMDD_BX_middur.csv in the ffpath folder.  
 
-You will also need a genotype.txt file to label each well with a condition. The `genotypeGenerator(...)` from the FramebyFrame package may be helpful.   
+You will also need a genotype.txt file to label each well with a condition. The `genotypeGenerator(...)` from the FramebyFrame package may be helpful. 
+
+Your genotype file should be called YYMMDD_BXgenotype.txt. It should match the corresponding middur.csv file. For example, the genotype file for experiment 230214_04_middur.csv must be called 230214_04genotype.txt.  
 
 ### 2• Launch the ZOLTAR app
 
@@ -73,7 +75,7 @@ https://francoiskroll.shinyapps.io/zoltar/
 
 Drag-and-drop or browse to input your middur.csv file(s) and genotype file(s).  
 
-If you have replicate experiments, you can input multiple middur.csv files. ZOLTAR will match each middur.csv file with its genotype file based on the YYMMDD_BX, so make sure they match. ZOLTAR will then use the average fingerprint of replicate experiments for predictions.  
+If you have replicate experiments, you can input multiple middur.csv files. ZOLTAR will match each middur.csv file with its genotype file based on the YYMMDD_BX, so make sure they match (see above). ZOLTAR will then use the average fingerprint of replicate experiments for predictions.  
 
 ZOLTAR will read the group names from your genotype files. Tell it which group is the treatment group and which is the control group.
 
