@@ -189,6 +189,7 @@ ui <- fluidPage(
         tabPanel('Fingerprint',
                  p(''),
                  downloadButton('ggfgp_dl', 'download pdf'),
+                 downloadButton('fgp_dl', 'download data'),
                  p(''),
                  plotOutput('ggfgp')),
         
@@ -556,6 +557,16 @@ server <- function(input, output, session) {
                    },
                    content=function(file) {
                      file.copy('fingerprint.pdf', file)
+                   }
+                 )
+                 
+                 # set-up the fingerprint data download
+                 output$fgp_dl <- downloadHandler( # download fingerprint
+                   filename=function() {
+                     'fingerprint.csv'
+                   },
+                   content=function(file) {
+                     vroom::vroom_write(fgp, file, delim=',') # delim = ',' so writes CSV
                    }
                  )
                  
