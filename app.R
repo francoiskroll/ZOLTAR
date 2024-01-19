@@ -146,7 +146,9 @@ ui <- fluidPage(
       
       ## cite us!
       p(''),
-      p('Cite us!'),
+      p(a(href="https://doi.org/10.1101/2023.11.28.568940",
+          HTML("Cite us!"),
+          target='_blank')),
       
       ## advanced settings panel
       # from https://stackoverflow.com/questions/77387537/how-can-i-implement-a-conditional-panel-revealed-by-clicking-an-arrowhead/77390635#77390635
