@@ -374,7 +374,7 @@ server <- function(input, output, session) {
                  # as treatment/control groups, user can only choose groups which are present in both genotype files
                  # i.e. the intersection of those character vectors
                  if(length(grpL)>1) {
-                   grpnms <- do.call(intersect, grpL)
+                   grpnms <- Reduce(intersect, grpL)
                  } else {
                    grpnms <- grpL[[1]]
                  }
@@ -581,7 +581,7 @@ server <- function(input, output, session) {
                  # this way user sees things appearing while calculations are happening
                  # EDIT: that does not seem to work like that, actually
                  # only displays when done with all calculations, unfortunately
-                 
+
                  ## rank drugs vs fingerprint
                  withProgress(message='ranking drugs', value=0.3, {
                    vdbr <<- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked

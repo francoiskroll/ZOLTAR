@@ -238,6 +238,12 @@ ggDrugFgp <- function(drugDb,
   dbn <- as.data.frame(t(ddb[rows2take, zcol:zcoll]))
   colnames(dbn) <- ddb[rows2take, 'name']
   
+  # will cause an issue if there are duplicate column names
+  # which can happen if two fingerprints with the same drug name
+  # I think it used to do it automatically below, e.g.   # e.g. Control / Control becomes Control / Control.1
+  # but now causes an error
+  colnames(dbn) <- make.unique(colnames(dbn))
+  
   # match formatting that ggLegacyFingerprint expects
   dbn <- dbn %>%
     add_column(uparam=row.names(dbn), .before=1) %>%
