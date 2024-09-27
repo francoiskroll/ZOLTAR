@@ -188,12 +188,13 @@ ggDraws <- function(vdbr,
     theme(
       panel.grid.minor.x=element_blank(),
       panel.grid.minor.y=element_blank(),
-      axis.title.x=element_text(size=9),
+      axis.title.x=element_text(size=9, margin=margin(t=-2, r=0, b=0, l=0)),
       axis.title.y=element_text(size=9),
       axis.text.x=element_text(size=7, margin=margin(t=-2, r=0, b=0, l=0)),
       axis.text.y=element_text(size=7, margin=margin(t=0, r=-2, b=0, l=0))
     ) +
-    xlab('sum of ranks') +
+    {if(whichRank=='abscos') xlab('sum of cosines')} +
+    {if(whichRank %in% c('rank', 'rankeq', 'rank0', 'ranks')) xlab('sum of ranks')} +
     ylab('frequency')
   
   
@@ -267,7 +268,16 @@ ggBarcode <- function(vdbr,
   
   # print the rows which are isSet
   # sometimes useful to label plot manually
-  print( radf[which(radf$isSet),] )
+  cat('\t \t \t \t >>> Fingerprints which given annotation:\n')
+  radfSet <- radf[which(radf$isSet),]
+  print( radfSet )
+  
+  # some summary metrics
+  
+  which(radfSet$cos<=0.2)
+  cat('\t \t \t \t \t >>>', nrow(radfSet),'fingerprints;', length(unique(radfSet$cid)),'unique compounds.\n')
+  cat('\t \t \t \t \t >>>', length(which(radfSet$cos>=0.2)), '/', nrow(radfSet),'fingerprints have a cosine >= 0.2.\n')
+  cat('\t \t \t \t \t >>>', length(which(radfSet$cos<=-0.2)), '/', nrow(radfSet),'fingerprints have a cosine <= ???0.2.\n')
   
   # we will label the position with maximum cos, the position with minimum cos
   # and cos ~ 0, i.e. the position at which cos is closest to 0

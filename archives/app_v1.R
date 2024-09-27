@@ -7,11 +7,6 @@
 # francois@kroll.be
 #####################################################
 
-### v6
-# there was only one real version of ZOLTAR before that, v6 corresponds to script drawEnrich
-# see there for details, briefly:
-# -- one drug / one fingerprint (for enrichments, not for drugs ranked)
-# -- summing cosines directly, not ranks
 
 # packages ----------------------------------------------------------------
 
@@ -30,7 +25,7 @@ library(shinyjs)
 
 source('legacyFingerprint.R')
 source('gglegacyFingerprint.R')
-source('drawEnrich_v6.R')
+source('drawEnrich_v5.R')
 source('paramsFromMid.R')
 source('cleanTables.R')
 source('ggEnrich.R')
@@ -51,8 +46,6 @@ options(shiny.maxRequestSize = 100*1024^2)
 # seems fairly easy to save uploaded data to Dropbox, if useful at some point
 # https://www.r-bloggers.com/2015/07/persistent-data-storage-in-shiny-apps/
 
-# running <- 'local'
-running <- 'online'
 
 
 # chunks of code for dropdown menus ---------------------------------------
@@ -97,21 +90,7 @@ ui <- fluidPage(
   
   title='ZOLTAR',
   
-  tags$head(
-    tags$link(rel="icon", type="image/png", href="favicon.png"),
-    
-    ## some windows appear when you click on rows, change their size
-    tags$style(HTML("
-      .modal-dialog {
-        width: 80%;
-        max-width: none;
-      }
-      .modal-content {
-        height: 80%;
-        max-height: none;
-      }
-    "))
-    ),
+  tags$head(tags$link(rel="icon", type="image/png", href="favicon.png")),
   
   ### app title
   img(src='zoltar.png', align='top', height=117.1, width=471),
@@ -209,7 +188,7 @@ ui <- fluidPage(
         # tabPanel('Table',
         #          tableOutput('fgp')),
         
-        tabPanel('Query fingerprint',
+        tabPanel('Fingerprint',
                  p(''),
                  downloadButton('ggfgp_dl', 'download pdf'),
                  downloadButton('fgp_dl', 'download data'),
@@ -224,7 +203,7 @@ ui <- fluidPage(
         #          h3(paste('Bottom', showNdrugs)),
         #          tableOutput('botdr')), # botdr is for bottom X drugs
         
-        tabPanel('Drug fingerprints ranked',
+        tabPanel('Drugs ranked',
                  p(''),
                  ## show details panel
                  checkboxInput('showdetails_Drugs', 'Show details', value=FALSE),
@@ -232,9 +211,8 @@ ui <- fluidPage(
                  # conditional panel to show/hide details
                  conditionalPanel(
                    condition = 'input.showdetails_Drugs == true',
-                   p('Every drug behavioural fingerprint from', a(href='https://www.science.org/doi/abs/10.1126/science.1183090', HTML('Rihel et al., 2010. <em>Science</em>',)), '(n = 5,756), ranked in comparison to the query fingerprint. Each row is a fingerprint, and a given drug can have multiple replicate fingerprints.'),
-                   p('>> Click on Cosine column to rank by increasing or decreasing.'),
-                   p('>> Click on a row to reveal every fingerprint of the same compound (same PubChem CID), together with the query fingerprint ("mean fgp").'),
+                   p('>> Click on Cosine column to rank by increasing or decreasing'),
+                   p('>> Click on a row to reveal the drug\'s fingerprint & any other with the same PubChem CID, together with the query fingerprint ("mean fgp").'),
                    p(''),
                    p(strong(em('• Cosine')), 'cosine similarity score (min. −1, max. +1) between the small molecule fingerprint and the query fingerprint.'),
                    p(strong(em('• Original name')), 'original compound name from Rihel et al. 2010 data.'),
@@ -242,8 +220,7 @@ ui <- fluidPage(
                    p(strong(em('• PubChem CID')), 'PubChem compound ID'),
                    p(strong(em('• TTD ID')), 'Therapeutic Target Database compound ID'),
                    p(strong(em('• Rank from 0')), 'position from the cosine ~ 0 position. Drug with the smallest positive cosine has rank = 1; drug with the smallest negative cosine has rank = -1.'),
-                   # Rank eq. not used in v6, so removing explanation
-                   # p(strong(em('• Rank eq.')), '"equidistant" rank. Drug with the largest positive cosine (maximum positive correlation) has rank = 1000 (arbitrary); then the drug below that has rank = 1000 − 1/N drugs on the positive cosine side. Similarly, drug with the largest negative cosine (maximum anti-correlation) also has rank = 1000; then the drug above that has rank = 1000 − 1/N drugs on the negative cosine side.'),
+                   p(strong(em('• Rank eq.')), '"equidistant" rank. Drug with the largest positive cosine (maximum positive correlation) has rank = 1000 (arbitrary); then the drug below that has rank = 1000 − 1/N drugs on the positive cosine side. Similarly, drug with the largest negative cosine (maximum anti-correlation) also has rank = 1000; then the drug above that has rank = 1000 − 1/N drugs on the negative cosine side.'),
                    p(strong(em('• Library')), 'source library of the compound.'),
                    p(strong(em('• Concentration')), 'approximate concentration at which the compound was tested.'),
                    p(strong(em('• Molecular weight')), 'compound\'s molecular weight in g/mol.'),
@@ -264,14 +241,13 @@ ui <- fluidPage(
                  # conditional panel to show/hide details
                  conditionalPanel(
                    condition = 'input.showdetails_Indications == true',
-                   p('Enrichment of specific drug indications at the top and/or bottom of the ranked list of drugs. To calculate the enrichments, ZOLTAR uses a version of the "drug fingerprints ranked" list where each unique drug (PubChem CID) is present as a single average fingerprint. n = 3,677 drugs.'),
-                   p(strong(em('• N drugs')), 'number of drugs annotated with this Indication.'),
-                   p(strong(em('• Sum of cosines')), 'sum of the absolute cosines of the N fingerprints with this Indication.'),
-                   p(strong(em('• Best possible sum of cosines')), 'sum of absolute cosines if the N fingerprints (N examples) were at the most extreme positions. For example, if N drugs = 4, it would represent the sum of cosines if the fingerprints with this Indication had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
-                   p(strong(em('• Fraction of best possible')), '= Sum of cosines/Best possible sum of cosines, i.e. the average cosine of each drug with this Indication. This gives a measure of enrichment that is more comparable between Indications which have different N drugs.'),
+                   p(strong(em('• N examples')), 'number of fingerprints annotated with this Indication. This can include replicate experiments with the same compound.'),
+                   p(strong(em('• Sum of ranks')), 'sum of the ranks of the N fingerprints with this Indication.'),
+                   p(strong(em('• Best possible sum of ranks')), 'sum of ranks if the N fingerprints (N examples) were at the most extreme positions. For example, if N examples = 4, it would represent the sum of ranks if the fingerprints with this Indication had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
+                   p(strong(em('• Fraction of best possible')), '= Sum of ranks/Best possible sum of ranks, to give a measure of enrichment that is somewhat normalised, i.e. comparable between Indications which have different N examples.'),
                    p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
-                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of cosines than the one observed (Sum of cosines).'),
-                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of cosines than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
                    p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
                    p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
                    p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
@@ -293,14 +269,13 @@ ui <- fluidPage(
                  # conditional panel to show/hide details
                  conditionalPanel(
                    condition = 'input.showdetails_Targets == true',
-                   p('Enrichment of specific drug target proteins at the top and/or bottom of the ranked list of drugs. To calculate the enrichments, ZOLTAR uses a version of the "drug fingerprints ranked" list where each unique drug (PubChem CID) is present as a single average fingerprint. n = 3,677 drugs.'),
-                   p(strong(em('• N drugs')), 'number of drugs annotated with this Target.'),
-                   p(strong(em('• Sum of cosines')), 'sum of the absolute cosines of the N fingerprints with this Indication.'),
-                   p(strong(em('• Best possible sum of cosines')), 'sum of absolute cosines if the N fingerprints (N examples) were at the most extreme positions. For example, if N drugs = 4, it would represent the sum of cosines if the fingerprints with this Target had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
-                   p(strong(em('• Fraction of best possible')), '= Sum of cosines/Best possible sum of cosines, i.e. the average cosine of each drug with this Indication. This gives a measure of enrichment that is more comparable between Targets which have different N drugs.'),
+                   p(strong(em('• N examples')), 'number of fingerprints annotated with this Target protein. This can include replicate experiments with the same compound.'),
+                   p(strong(em('• Sum of ranks')), 'sum of the ranks of the N fingerprints with this Target protein'),
+                   p(strong(em('• Best possible sum of ranks')), 'sum of ranks if the N fingerprints (N examples) were at the most extreme positions. For example, if N examples = 4, it would represent the sum of ranks if the fingerprints with this Target had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
+                   p(strong(em('• Fraction of best possible')), '= Sum of ranks/Best possible sum of ranks, to give a measure of enrichment that is somewhat normalised, i.e. comparable between Targets which have different N examples.'),
                    p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
-                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of cosines than the one observed (Sum of cosines).'),
-                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of cosines than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
                    p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
                    p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
                    p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
@@ -322,14 +297,13 @@ ui <- fluidPage(
                  # conditional panel to show/hide details
                  conditionalPanel(
                    condition = 'input.showdetails_KEGG == true',
-                   p('Enrichment of specific KEGG pathways at the top and/or bottom of the ranked list of drugs. To calculate the enrichments, ZOLTAR uses a version of the "drug fingerprints ranked" list where each unique drug (PubChem CID) is present as a single average fingerprint. n = 3,677 drugs.'),
-                   p(strong(em('• N drugs')), 'number of drugs annotated with this KEGG pathway.'),
-                   p(strong(em('• Sum of cosines')), 'sum of the absolute cosines of the N fingerprints with this KEGG pathway.'),
-                   p(strong(em('• Best possible sum of cosines')), 'sum of absolute cosines if the N fingerprints (N examples) were at the most extreme positions. For example, if N drugs = 4, it would represent the sum of cosines if the fingerprints with this KEGG pathway had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
-                   p(strong(em('• Fraction of best possible')), '= Sum of cosines/Best possible sum of cosines, i.e. the average cosine of each drug with this Indication. This gives a measure of enrichment that is more comparable between KEGG pathways which have different N drugs.'),
+                   p(strong(em('• N examples')), 'number of fingerprints annotated with this KEGG pathway. This can include replicate experiments with the same compound.'),
+                   p(strong(em('• Sum of ranks')), 'sum of the ranks of the N fingerprints with this KEGG pathway'),
+                   p(strong(em('• Best possible sum of ranks')), 'sum of ranks if the N fingerprints (N examples) were at the most extreme positions. For example, if N examples = 4, it would represent the sum of ranks if the fingerprints with this KEGG pathway had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
+                   p(strong(em('• Fraction of best possible')), '= Sum of ranks/Best possible sum of ranks, to give a measure of enrichment that is somewhat normalised, i.e. comparable between KEGG pathways which have different N examples.'),
                    p(strong(em('• N draws')), 'number of random draws, this is always 10,000.'),
-                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of cosines than the one observed (Sum of cosines).'),
-                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of cosines than the observed one. The real p-value is ≤ 0.0001.'),
+                   p(strong(em('• N higher')), 'number of random draws which gave a higher sum of ranks than the one observed (Sum of ranks).'),
+                   p(strong(em('• pval')), '= N higher/N draws. Smallest possible p-value is 0.0001, which corresponds to 1 or 0 out of 10,000 random draws giving a more extreme sum of ranks than the observed one. The real p-value is ≤ 0.0001.'),
                    p(strong(em('• Bon. sign.')), 'whether the p-value remains significant after Bonferroni correction. Alpha threshold is set at 0.05.'),
                    p(strong(em('• Ben. sign.')), 'whether the p-value remains significant after Benjamini-Hochberg correction. Alpha threshold is set at 0.05.'),
                    p(strong(em('• KS D')), 'D statistic of the Kolmogorov–Smirnov (KS) test.'),
@@ -536,6 +510,7 @@ server <- function(input, output, session) {
                  }
                  # make fgp a global variable (<<-) because also used when user clicks on ranked drugs to reveal fingerprint plot
                  
+                 
                  ### prepare fingerprint plot ###
                  ggfgp <- gglegacyFingerprint(
                    lFgp=fgp,
@@ -563,6 +538,7 @@ server <- function(input, output, session) {
                  # then in downloadHandler we copy the file
                  # so really the user is saying "give me a copy of that fingerprint plot saved on the server"
                  ggsave('fingerprint.pdf', plot=ggfgp)
+                 
                  
                  ### display fingerprint table ###
                  # will probably delete, it is more useful for debugging
@@ -596,7 +572,7 @@ server <- function(input, output, session) {
                    }
                  )
                  
-
+                 
                  ###############################################################
                  ### ranked drugs ###
                  
@@ -618,10 +594,11 @@ server <- function(input, output, session) {
                    
                    incProgress(1.0)
                  })
-
+                 
+                 
                  ## display results
                  
-                 ### solution to display top X drugs
+                 # # display top X drugs
                  # output$topdr <- renderTable({ # topdr is for top X drugs
                  #   return(vdbr_dis[1:showNdrugs,]) # this becomes 'topdr' in ui
                  # })
@@ -646,15 +623,6 @@ server <- function(input, output, session) {
                    }
                  )
                  
-                 ###############################################################
-                 ### rank drugs again ###
-                 # rank database where each drug is just one fingerprint
-                 # as of v6, this is the database we use to calculate enrichments
-                 # we do not display it, just calculate it to be used for enrichment calculations
-                 vdbrSUM <<- rankDrugDb(legacyFgp=fgp, # vdbr is for fingerprint VS drug DB, Ranked
-                                        dbPath='drugDbSUM.csv',
-                                        metric='cosine')
-                 
                  
                  ###############################################################
                  ### TTD indications ###
@@ -675,12 +643,12 @@ server <- function(input, output, session) {
                  indications_bg <- reactive({
                    callr::r_bg(
                      func=drugEnrichment,
-                     args=list(vdbr=vdbrSUM, ### here ZOLTAR v1 was vdbr
+                     args=list(vdbr=vdbr,
                                namesPath='compounds.csv',
                                annotationPath='TTDindications.csv',
                                annotation='indications',
-                               whichRank='abscos', ### here ZOLTAR v1 was rankeq, now v6 summing absolute cosines, not ranks
-                               minNex=2,
+                               whichRank='rankeq',
+                               minNex=3,
                                ndraws=ndraws,
                                alphaThr=0.05,
                                statsExport=NA),
@@ -750,12 +718,12 @@ server <- function(input, output, session) {
                  targets_bg <- reactive({
                    callr::r_bg(
                      func=drugEnrichment,
-                     args=list(vdbr=vdbrSUM, ### here ZOLTAR v1 was vdbr
+                     args=list(vdbr=vdbr,
                                namesPath='compounds.csv',
                                annotationPath='TTDtargets.csv',
                                annotation='TTDtargets',
-                               whichRank='abscos', ### here ZOLTAR v1 was rankeq, now v6 summing absolute cosines, not ranks
-                               minNex=2,
+                               whichRank='rankeq',
+                               minNex=3,
                                ndraws=ndraws,
                                alphaThr=0.05,
                                statsExport=NA),
@@ -827,12 +795,12 @@ server <- function(input, output, session) {
                  kegg_bg <- reactive({
                    callr::r_bg(
                      func=drugEnrichment,
-                     args=list(vdbr=vdbrSUM, ### here ZOLTAR v1 was vdbr
+                     args=list(vdbr=vdbr,
                                namesPath='compounds.csv',
                                annotationPath='TTDkegg.csv',
                                annotation='KEGG',
-                               whichRank='abscos', ### here ZOLTAR v1 was rankeq, now v6 summing absolute cosines, not ranks
-                               minNex=2,
+                               whichRank='rankeq',
+                               minNex=3,
                                ndraws=ndraws,
                                alphaThr=0.05,
                                statsExport=NA),
@@ -932,7 +900,7 @@ server <- function(input, output, session) {
                        height=NA)
     
     modal <- modalDialog(
-      title = 'Fingerprint plot' ,
+      title = 'Barcode plot' ,
       
       # tell user about what we did
       paste(length(which(vdbr$cid==cid)), 'fingerprint(s) for PubChem CID', cid, '\n'),
@@ -961,29 +929,17 @@ server <- function(input, output, session) {
     clickrow <- input$ind_dis_rows_selected
     
     # prepare the barcode plot
-    ggBc <- ggBarcode(vdbr=vdbrSUM, ## here ZOLTAR v6
+    ggBc <- ggBarcode(vdbr=vdbr,
                       namesPath='compounds.csv',
                       annotationPath='TTDindications.csv',
                       annotation='indications',
                       testAnnotation=ind[clickrow , 'annotation'],
                       minScore=NA,
                       barwidth1=2,
-                      barwidth2=15,
+                      barwidth2=25,
                       exportPath=NA,
                       width=NA,
                       height=NA)
-    
-    ## how many drugs with this annotation?
-    # when online
-    if(running=='online') {
-      dbInd <- read.csv('TTDindications.csv')
-    } else {
-      dbInd <- read.csv('~/Dropbox/predPharma/TTDindications.csv')
-    }
-    # how many drugs with at least one annotation
-    nuCID <- length(unique(dbInd$cid))
-    # how many drugs with this annotation
-    nanoCID <- length(which(dbInd$indication==ind[clickrow , 'annotation']))
     
     modal <- modalDialog(
       title = 'Barcode plot' ,
@@ -991,8 +947,6 @@ server <- function(input, output, session) {
       paste(ind[clickrow, 'annotation']) , 
       
       plotOutput( 'ggBc' ) ,
-      
-      p(nanoCID, 'drugs annotated with this indication, out of', nuCID, 'drugs with at least one annotated indication.'),
       
       easyClose=TRUE,
       footer=modalButton('Close')
@@ -1016,30 +970,17 @@ server <- function(input, output, session) {
     clickrow <- input$ttar_dis_rows_selected
     
     # prepare the barcode plot
-    ggBc <- ggBarcode(vdbr=vdbrSUM, ## here ZOLTAR v6
+    ggBc <- ggBarcode(vdbr=vdbr,
                       namesPath='compounds.csv',
                       annotationPath='TTDtargets.csv',
                       annotation='TTDtargets',
                       testAnnotation=ttar[clickrow , 'annotation'],
                       minScore=NA,
                       barwidth1=2,
-                      barwidth2=15,
+                      barwidth2=25,
                       exportPath=NA,
                       width=NA,
                       height=NA)
-    
-    ## how many drugs with this annotation?
-    # when online
-    if(running=='online') {
-      dbTar <- read.csv('TTDtargets.csv')
-    } else {
-      dbTar <- read.csv('~/Dropbox/predPharma/TTDtargets.csv')
-    }
-    # how many drugs with at least one annotation
-    nuCID <- length(unique(dbTar$cid))
-    # how many drugs with this annotation
-    nanoCID <- length(which(dbTar$TARGETID==ttar[clickrow , 'annotation']))
-  
     
     modal <- modalDialog(
       title = 'Barcode plot' ,
@@ -1047,8 +988,6 @@ server <- function(input, output, session) {
       paste(ttar[clickrow, 'TARGNAME']) , 
       
       plotOutput( 'ggBc' ) ,
-      
-      p(nanoCID, 'drugs annotated with this target, out of', nuCID, 'drugs with at least one annotated target.'),
       
       easyClose=TRUE,
       footer=modalButton('Close')
@@ -1072,29 +1011,17 @@ server <- function(input, output, session) {
     clickrow <- input$keg_dis_rows_selected
     
     # prepare the barcode plot
-    ggBc <- ggBarcode(vdbr=vdbr, ## here ZOLTAR v6
+    ggBc <- ggBarcode(vdbr=vdbr,
                       namesPath='compounds.csv',
                       annotationPath='TTDkegg.csv',
                       annotation='KEGG',
                       testAnnotation=keg[clickrow , 'annotation'],
                       minScore=NA,
                       barwidth1=2,
-                      barwidth2=15,
+                      barwidth2=25,
                       exportPath=NA,
                       width=NA,
                       height=NA)
-    
-    ## how many drugs with this annotation?
-    # when online
-    if(running=='online') {
-      dbKeg <- read.csv('TTDkegg.csv')
-    } else {
-      dbKeg <- read.csv('~/Dropbox/predPharma/TTDkegg.csv')
-    }
-    # how many drugs with at least one annotation
-    nuCID <- length(unique(dbKeg$cid))
-    # how many drugs with this annotation
-    nanoCID <- length(which(dbKeg$keggid==keg[clickrow , 'annotation']))
     
     modal <- modalDialog(
       title = 'Barcode plot' ,
@@ -1102,8 +1029,6 @@ server <- function(input, output, session) {
       paste(keg[clickrow, 'keggname']) , 
       
       plotOutput( 'ggBc' ) ,
-      
-      p(nanoCID, 'drugs annotated with this KEGG pathway, out of', nuCID, 'drugs with at least one annotated KEGG pathway.'),
       
       easyClose=TRUE,
       footer=modalButton('Close')

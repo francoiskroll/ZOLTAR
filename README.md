@@ -88,3 +88,14 @@ ZOLTAR will read the group names from your genotype files. Tell it which group i
 ### 4• Press Go!
 
 You should see your results gradually appear in a total of ~ 7 min.
+
+## Version history
+
+### v1
+First online version.
+
+### v2
+Two changes to the analysis:
+* When calculating enrichments, ZOLTAR uses a version of the database (drugDbSUM.csv) where each drug is present as only one fingerprint. If a drug had multiple replicate fingerprint, they were averaged. This is to avoid having significant enrichments that are simply driven by multiple fingerprints of the same drug. Additional support for an hypothesis should come from more unique drugs with the same annotation having high or low cosines, not from a single drug with a particularly high or low cosine being in the database many times. Tab "Drug fingerprints ranked" still lists the complete database, where a drug can be present as multiple fingerprints.
+* ZOLTAR now directly sums (absolute) cosines, not ranks, to measure enrichments. Previously, in a situation where there were no high cosines for a given query fingerprint (e.g. maximum cos = 0.3) and a situation where there were high cosines (e.g. maximum cos = 0.8), the drug with the maximum cosine (0.3 or 0.8) would both get the same rank, so would be worth the same in the enrichment analysis. I now think it makes more sense to use directly the cosine, as the drug with cosine 0.8 should provide more support for the hypothesis (enrichment of its annotations) than the drug with cosine 0.3.
+There are other aesthetics/formatting changes. For example, the windows that appear when clicking on a row in the tables is bigger. There are also more detailed descriptions of each tab.

@@ -14,8 +14,10 @@
 
 cleanDrugsRanked <- function(vdbr) {
   
-  ## remove Z-scores
-  vdbr <- vdbr[ , - which(startsWith(colnames(vdbr), c('day', 'night'))) ]
+  ## remove day Z-scores
+  vdbr <- vdbr[ , - which(startsWith(colnames(vdbr), 'day')) ]
+  ## remove night Z-scores
+  vdbr <- vdbr[ , - which(startsWith(colnames(vdbr), 'night')) ]
   
   ## remove pharma column
   vdbr$pharma <- NULL
@@ -35,15 +37,16 @@ cleanDrugsRanked <- function(vdbr) {
   ## round cos column
   vdbr$cos <- round(vdbr$cos, digits=2)
   
-  ## round rankeq column
-  vdbr$rankeq <- round(vdbr$rankeq, digits=2)
+  ## v6: not using rankeq anymore, so removing column
+  # before was: vdbr$rankeq <- round(vdbr$rankeq, digits=2)
+  vdbr$rankeq <- NULL
   
   ## re-arrange columns
-  vdbr <- vdbr[, c('cos', 'name', 'cleanm', 'cid', 'tid', 'ranks', 'rankeq', 'library', 'concentration', 'MolecularWeight', 'inSmall', 'structCluster')]
+  vdbr <- vdbr[, c('cos', 'name', 'cleanm', 'cid', 'tid', 'ranks', 'library', 'concentration', 'MolecularWeight', 'inSmall', 'structCluster')]
   
   ## rename columns
   colnames(vdbr) <- c('Cosine', 'Original name', 'Name', 'PubChem CID', 'TTD ID',
-                      'Rank from 0', 'Rank eq.', 'Library', 'Concentration', 'Molecular weight', 'Shortlisted', 'Structural cluster')
+                      'Rank from 0', 'Library', 'Concentration', 'Molecular weight', 'Shortlisted', 'Structural cluster')
   
   ## return
   return(vdbr)
@@ -73,7 +76,7 @@ cleanIndications <- function(ind) {
   ind$kspval <- round(ind$kspval, digits=2)
   
   ## re-name columns
-  colnames(ind) <- c('Indication', 'N examples', 'Sum of ranks', 'Best possible sum of ranks', 'Fraction of best possible', 'N draws', 'N higher',
+  colnames(ind) <- c('Indication', 'N drugs', 'Sum of cosines', 'Best possible sum of cosines', 'Fraction of best possible', 'N draws', 'N higher',
                      'pval', 'Bon. sign.', 'Ben. sign.', 'KS D', 'KS pval', 'KS Bon. sign.', 'KS Ben. sign.')
   
   ## return
@@ -95,7 +98,7 @@ cleanTTDtargets <- function(tar) {
   # make sure ndraws & nhigher columns are displayed as an integer
   tar$ndraws <- as.integer(tar$ndraws)
   tar$nhigher <- as.integer(tar$nhigher)
-
+  
   tar$sumRanks <- round(tar$sumRanks, digits=2)
   tar$bestPos <- round(tar$bestPos, digits=2)
   tar$sumRanksFracPos <- round(tar$sumRanksFracPos, digits=2)
@@ -109,7 +112,7 @@ cleanTTDtargets <- function(tar) {
   
   ## re-name columns
   colnames(tar) <- c('TTD ID', 'Target', 'Gene (human)', 'UniProt name', 'Bioclass', 'Status',
-                     'N examples', 'Sum of ranks', 'Best possible sum of ranks', 'Fraction of best possible', 'N draws', 'N higher',
+                     'N drugs', 'Sum of cosines', 'Best possible sum of cosines', 'Fraction of best possible', 'N draws', 'N higher',
                      'pval', 'Bon. sign.', 'Ben. sign.', 'KS D', 'KS pval', 'KS Bon. sign.', 'KS Ben. sign.')
   
   ## return
@@ -140,7 +143,7 @@ cleanKEGG <- function(keg) {
   keg$kspval <- round(keg$kspval, digits=2)
   
   ## re-name columns
-  colnames(keg) <- c('ID', 'KEGG pathway', 'N examples', 'Sum of ranks', 'Best possible sum of ranks', 'Fraction of best possible',
+  colnames(keg) <- c('ID', 'KEGG pathway', 'N drugs', 'Sum of cosines', 'Best possible sum of cosines', 'Fraction of best possible',
                      'N draws', 'N higher', 'pval', 'Bon. sign.', 'Ben. sign.', 'KS D', 'KS pval', 'KS Bon. sign.', 'KS Ben. sign.')
   
   ## return

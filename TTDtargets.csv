@@ -1740,6 +1740,7 @@
 128018,"D04DLR","T07806","5HT1B_HUMAN","5-HT 1B receptor (HTR1B)","HTR1B","Successful target","GPCR rhodopsin"
 135403646,"D01OHV","T78198","PNPH_HUMAN","Purine nucleoside phosphorylase (PNP)","PNP","Clinical trial target","Pentosyltransferase"
 5959,"D0X6IU","T88338",NA,"Bacterial 23S ribosomal RNA (Bact 23S rRNA)",NA,"Successful target",NA
+6433951,"D0Q4TK","T31230","FRDA_HELPY","Bacterial Fumarate reductase flavoprotein (Bact frdA)","Bact frdA","Successful target","CH-CH donor oxidoreductase"
 4173,"D0A2ZX","T49814",NA,"Bacterial Deoxyribonucleic acid (Bact DNA)",NA,"Successful target",NA
 12560,"D02YIZ","T53601",NA,"Bacterial 50S ribosomal RNA (Bact 50S rRNA)",NA,"Successful target",NA
 7699,"D0Q2ES","T39716","SCN5A_HUMAN","Voltage-gated sodium channel alpha Nav1.5 (SCN5A)","SCN5A","Successful target","Voltage-gated ion channel"

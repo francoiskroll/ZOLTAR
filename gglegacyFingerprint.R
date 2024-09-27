@@ -250,8 +250,6 @@ ggDrugFgp <- function(drugDb,
     mutate(parameter=strNthSplit(uparam, '_', 2), .after='uparam') %>%
     mutate(win=strNthSplit(uparam, '_', 1), .after='uparam')
   row.names(dbn) <- NULL
-  # note, above will automatically change column names to avoid duplicates
-  # e.g. Control / Control becomes Control / Control.1
   
   ### keep only Z-scores from legacy fingerprint(s)
   if (!is.null(legacyFgp[1])) {
@@ -271,6 +269,11 @@ ggDrugFgp <- function(drugDb,
     # (we checked above all parameters are present)
     
   }
+  
+  
+  ### give cosines of fingerprints comparisons
+  fsim <- as.data.frame(lsa::cosine(as.matrix(dbn[4:ncol(dbn)])))
+  print(fsim)
   
   
   ### send to gglegacyFingerprint for plotting
