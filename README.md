@@ -10,20 +10,10 @@ Please cite us if you use ZOLTAR in your work.
 
 François Kroll, Joshua Donnelly, Güliz Gürel Özcan, Eirinn Mackay, Jason Rihel  
 **Behavioural pharmacology predicts disrupted signalling pathways and candidate therapeutics from zebrafish mutants of Alzheimer’s disease risk genes**  
-https://doi.org/10.1101/2023.11.28.568940
+https://doi.org/10.7554/eLife.96839.2
 
-[![alt text][1.2]][1] [@francois_kroll](https://twitter.com/francois_kroll)
-
-:email: francois@kroll.be
-
-<!-- icons with padding -->
-[1.1]: http://i.imgur.com/tXSoThF.png (twitter icon with padding)
-
-<!-- icons without padding -->
-[1.2]: http://i.imgur.com/wWzX9uB.png (twitter icon without padding)
-
-<!-- links to your social media accounts -->
-[1]: https://twitter.com/francois_kroll
+:email: francois@kroll.be  
+[@francoiskroll.bsky.social](https://bsky.app/profile/francoiskroll.bsky.social)
 
 ___
 
