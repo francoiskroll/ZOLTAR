@@ -143,7 +143,7 @@ cleanKEGG <- function(keg) {
   keg$kspval <- round(keg$kspval, digits=2)
   
   ## re-name columns
-  colnames(keg) <- c('ID', 'KEGG pathway', 'N drugs', 'Sum of cosines', 'Best possible sum of cosines', 'Fraction of best possible',
+  colnames(keg) <- c('ID', 'KEGG pathway', 'N drug-target', 'Sum of cosines', 'Best possible sum of cosines', 'Fraction of best possible',
                      'N draws', 'N higher', 'pval', 'Bon. sign.', 'Ben. sign.', 'KS D', 'KS pval', 'KS Bon. sign.', 'KS Ben. sign.')
   
   ## return

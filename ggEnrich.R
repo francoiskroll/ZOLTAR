@@ -97,6 +97,8 @@ ggDraws <- function(vdbr,
   # which type of rank we use depends on setting whichRank
   sr <- sum(radf[which(radf[,annotationCol]==testAnnotation), whichRank]) # sr for sum of ranks
   
+  cat('\t \t \t \t >>> Sum of', whichRank, '=', sr, '\n')
+  
   
   ### what is the best possible sum of ranks?
   # say there are 20 instances of a given annotation
@@ -268,16 +270,27 @@ ggBarcode <- function(vdbr,
   
   # print the rows which are isSet
   # sometimes useful to label plot manually
-  cat('\t \t \t \t >>> Fingerprints which given annotation:\n')
+  cat('\t \t \t \t >>> Fingerprints with given annotation:\n')
   radfSet <- radf[which(radf$isSet),]
-  print( radfSet )
+  print(radfSet)
   
   # some summary metrics
   
-  which(radfSet$cos<=0.2)
-  cat('\t \t \t \t \t >>>', nrow(radfSet),'fingerprints;', length(unique(radfSet$cid)),'unique compounds.\n')
+  if(annotation=='indications') {
+    cat('\t \t \t \t >>> total', nrow(radf),'drug-indication pairs (', length(unique(radf$cid)), 'unique compounds )\n')
+  } else if(annotation=='TTDtargets') {
+    cat('\t \t \t \t >>> total', nrow(radf),'drug-target pairs (', length(unique(radf$cid)), 'unique compounds )\n')
+  } else if(annotation=='KEGG') {
+    cat('\t \t \t \t >>> total', nrow(radf),'drug > target > KEGG pathway interactions (', length(unique(radf$cid)), 'unique compounds )\n')
+  } else if(annotation=='humanSTITCH') {
+    cat('\t \t \t \t >>> total', nrow(radf),'drug-indication pairs (', length(unique(radf$cid)), 'unique compounds )\n')
+  } else if(annotation=='zebrafishSTITCH') {
+    cat('\t \t \t \t >>> total', nrow(radf),'drug-indication pairs (', length(unique(radf$cid)), 'unique compounds )\n')
+  }
+  
+  cat('\t \t \t \t \t >>> of which,', nrow(radfSet),'fingerprints;', length(unique(radfSet$cid)),'unique compounds have given annotation.\n')
   cat('\t \t \t \t \t >>>', length(which(radfSet$cos>=0.2)), '/', nrow(radfSet),'fingerprints have a cosine >= 0.2.\n')
-  cat('\t \t \t \t \t >>>', length(which(radfSet$cos<=-0.2)), '/', nrow(radfSet),'fingerprints have a cosine <= ???0.2.\n')
+  cat('\t \t \t \t \t >>>', length(which(radfSet$cos<=-0.2)), '/', nrow(radfSet),'fingerprints have a cosine <= -0.2.\n')
   
   # we will label the position with maximum cos, the position with minimum cos
   # and cos ~ 0, i.e. the position at which cos is closest to 0
