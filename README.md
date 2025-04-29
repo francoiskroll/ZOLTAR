@@ -11,7 +11,16 @@ Please cite us if you use ZOLTAR in your work.
 François Kroll, Joshua Donnelly, Güliz Gürel Özcan, Eirinn Mackay, Jason Rihel  
 **Behavioural pharmacology predicts disrupted signalling pathways and candidate therapeutics from zebrafish mutants of Alzheimer’s disease risk genes**  
 _eLife_, 2024  
-https://doi.org/10.7554/eLife.96839.2
+https://doi.org/10.7554/eLife.96839.3
+
+If you use a dataset included here, please also cite:
+
+Jason Rihel, David A Prober, Anthony Arvanites, Kelvin Lam, Steven Zimmerman, Sumin Jang, Stephen J Haggarty, David Kokel, Lee L Rubin, Randall T Peterson, Alexander F Schier
+**Zebrafish behavioral profiling links drugs to biological targets and rest/wake regulation**  
+_Science_, 2010  
+https://10.1126/science.1183090
+
+Thank you!
 
 :email: francois@kroll.be  
 [@francoiskroll.bsky.social](https://bsky.app/profile/francoiskroll.bsky.social)
@@ -79,6 +88,49 @@ ZOLTAR will read the group names from your genotype files. Tell it which group i
 ### 4• Press Go!
 
 You should see your results gradually appear in a total of ~ 7 min.
+
+## About the dataset
+
+Feel free to make use of the ZOLTAR dataset in your own work! Here are some pointers.
+
+`drugDb.csv` is the main dataset with the behavioural data. Columns are:
+* `name` original name of the compound from Rihel et al., 2010
+* `cleanm` simplified name where most of the stereochemistry and salt information was removed. This allowed to assign the same PubChem CID (see below) to compounds that are either the same but recorded differently (e.g. ‘Dopamine hydrochloride’ and ‘Dopamine HCl) and to compounds that varied by their stereochemistry or salts (e.g. atropine sulfate vs. atropine methyl nitrate, `cleanm` is "atropine" for both)
+* `cid` PubChem CID
+* `tid` Therapeutic Target Database ID
+* `library` source drug library, column from Rihel et al. 2010
+* `concentration` concentration used for the experiment. We relied on the source library to assign the concentration.
+* `MolecularWeight` in g/mol
+* `Complexity` unsure what this column represents, some version of a complexity measure, perhaps based on Tanimoto score. One should re-calculate it if it is useful. It is not used in ZOLTAR.
+* `inSmall` whether this compound was labelled as "shortlisted" by Rihel et al., 2010. A compound was shortlisted if it affected at least one behavioural parameter with a large effect size and/or affected the same parameter in the same direction across the two days/nights.
+* `structCluster` as "Complexity", unsure. I think it groups compounds with similar structures. Will need to search Rihel et al., 2010 in greater details or re-calculate. It is not used in ZOLTAR.
+* `pharma` pharmaceutical activity/drug targets labelled by Rihel et al., 2010. Those annotations are not used by ZOLTAR. Instead, we extracted drug targets from Therapeutic Target Database (TTD) and STITCH, we would recommend using these newer/more detailed annotations.
+
+Following columns are the datapoints of each behavioural fingerprint. Units are in z-scores compared to controls.
+
+Each behavioural parameter has four datapoints: night1, day1, night2, day2.
+
+The behavioural parameters are:
+* `sleep` total sleep (originally in hours)
+* `sleepBout` number of sleep bouts
+* `sleepLength` average sleep bout length (originally in minutes)
+* `sleepLatency` minutes until first sleep bout
+* `averageActivity` seconds active by minute
+* `averageWaking` seconds active by minute, excluding sleep (inactive minutes)
+
+The last two columns `nightmean_averageWaking` and `daymean_averageWaking` are means of day1 & day2 or night1 & night2 averageWaking. They are not used by ZOLTAR as they are a bit redundant.
+
+`drugDbSUM.csv` is a simplified version of this database where each compound (unique PubChem CID, so ignoring different stereochemistry or salt) is present as a single average fingerprint. ZOLTAR uses this dataset when calculating enrichments so that a single compound could not drive a significant enrichment simply because it was present as many fingerprints. This dataset could also be used to get a more representative unique fingerprint for each compound. Column `nfingerprints` records how many fingerprints (rows of `drugDb.csv`) were averaged. For columns `library`, `concentration`, `MolecularWeight`, `Complexity`, `structCluster`, `pharma`, the different rows are concatenated with '/'.
+
+`compounds.csv` has the same columns `name`, `cleanm`, `cid`, `tid`, `MolecularWeight`, `Complexity` as `drugDb.csv` but simply lists only once each unique compound (unique PubChem CID).
+
+`TTDindications.csv` information from TTD about the indications for each compound (i.e. what the compound is used for). A compound can be present multiple times if it has multiple indications. Only compounds with a TTD ID are listed so the total count is much lower than the number of unique PubChem CID in `compounds.csv`.
+
+`TTDtargets.csv` information from TTD about the drug targets for each compound (i.e. the protein with which the compound interacts with). A compound can be present multiple times if it has multiple targets. `TARGETID` is an ID for each target protein from TTD.
+
+`TTDkegg.csv` information from TTD about the KEGG pathways each compound interacts with through each of its target. Each row is a unique TTD ID (compound) – target – KEGG pathway link.
+
+In the TTD datasets, only compounds with a TTD ID are listed so the total count of compounds is much lower than the number of unique PubChem CID in `compounds.csv`.
 
 ## Version history
 
