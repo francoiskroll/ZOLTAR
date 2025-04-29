@@ -15,7 +15,7 @@ https://doi.org/10.7554/eLife.96839.3
 
 If you use a dataset included here, please also cite:
 
-Jason Rihel, David A Prober, Anthony Arvanites, Kelvin Lam, Steven Zimmerman, Sumin Jang, Stephen J Haggarty, David Kokel, Lee L Rubin, Randall T Peterson, Alexander F Schier
+Jason Rihel, David A Prober, Anthony Arvanites, Kelvin Lam, Steven Zimmerman, Sumin Jang, Stephen J Haggarty, David Kokel, Lee L Rubin, Randall T Peterson, Alexander F Schier  
 **Zebrafish behavioral profiling links drugs to biological targets and rest/wake regulation**  
 _Science_, 2010  
 https://10.1126/science.1183090
