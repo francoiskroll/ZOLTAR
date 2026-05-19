@@ -479,9 +479,11 @@ rankDrugDb <- function(legacyFgp,
   # using e.g. 1000 makes it so so we usually have some number above 1 when summing a few ranks
   posstep <- 1000/length(which(vdbr$cos>0))
   negstep <- 1000/length(which(vdbr$cos<0))
+
   vdbr[which(vdbr$cos>0), 'rankeq'] <- rev(seq(posstep, posstep*length(which(vdbr$cos>0)), posstep))
   # from top of the list going down up to cos ~ 0, rankeq goes something like 1000, 999.5, 999, etc.
   vdbr[which(vdbr$cos<0), 'rankeq'] <- seq(negstep, negstep*length(which(vdbr$cos<0)), negstep)
+
   # from cos ~ 0 going down, rankeq goes something like 0.5, 1.0, 1.5, etc.
   # check no more NA:
   if(sum(is.na(vdbr$rankeq))>0) stop('\t \t \t \t >>> Error: some NA in rankeq column. \n')

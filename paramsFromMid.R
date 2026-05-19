@@ -90,6 +90,22 @@ legacyFingerprintMid <- function(mid,
       # calculate the sd of control datapoints
       sdCon <- sd( pa[(which(pa$grp==conGrp)), win] , na.rm=TRUE)
       
+      ### 19/05/2026 issue found by Serena Jenson (Tornini lab)
+      # sleepLatency is sometimes all 1s, which gives std = 0
+      # then below divides by, returns Inf, which breaks code later in app
+      # there is no perfectly correct way to deal with this!
+      # we will modify sdCon as if *one* fish had sleepLatency=2
+      # which should give a realistic measure
+      # maximum n should be an experiment with 95 control fish and 1 treatment fish
+      # so say we observed 1, 1, 1, etc (95 times) and 2 > would give sd ~ 0.1
+      if(unique(pa$parameter)=='sleepLatency' & sdCon==0) {
+        sdCon <- 0.1
+      
+        # write down error so I do not spend time looking for it if happens again
+      } else if(sdCon==0) {
+        cat('\t \t \t \t WARNING: standard deviation is 0, will cause Inf z-scores.\n')
+      }
+      
       # calculate the mean of treatment datapoints
       meanTre <- mean( pa[(which(pa$grp==treGrp)), win] , na.rm=TRUE)
       
