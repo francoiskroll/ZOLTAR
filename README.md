@@ -132,6 +132,10 @@ The last two columns `nightmean_averageWaking` and `daymean_averageWaking` are m
 
 In the TTD datasets, only compounds with a TTD ID are listed so the total count of compounds is much lower than the number of unique PubChem CID in `compounds.csv`.
 
+`geneticDbSUM.csv`, similar to `drugDbSUM.csv` but for genetic fingerprints calculated from data collected through [ZOLTARcontribute](https://francoiskroll.shinyapps.io/zoltarcontribute/). It is called `SUM` because each fingerprint is the mean fingerprint of the replicate experiments submitted by the researcher. The fingerprints that were averaged are listed in column `ids`. There is one fingerprint per gene per genotype per ZOLTARcontribute submission.
+
+> Genetic fingerprint database was last updated 03/03/2026.
+
 ## Version history
 
 ### v1
@@ -143,3 +147,6 @@ Two changes to the analysis:
 * ZOLTAR now directly sums (absolute) cosines, not ranks, to measure enrichments. Previously, in a situation where there were no high cosines for a given query fingerprint (e.g. maximum cos = 0.3) and a situation where there were high cosines (e.g. maximum cos = 0.8), the drug with the maximum cosine (0.3 or 0.8) would both get the same rank, so would be worth the same in the enrichment analysis. I now think it makes more sense to use directly the cosine, as the drug with cosine 0.8 should provide more support for the hypothesis (enrichment of its annotations) than the drug with cosine 0.3.
   
 There are other aesthetics/formatting changes. For example, the windows that appear when clicking on a row in the tables is bigger. There are also more detailed descriptions of each tab.
+
+### v3
+Added database of genetic fingerprints! See tab "vs. Genes".
