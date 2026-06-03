@@ -68,8 +68,8 @@ legacyFingerprintMid <- function(mid,
   paral <- calculateParameters(mid=mid, genopath=genopath, suns=suns)
   
   # check that treGrp & conGrp are correct
-  if(! treGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: treGrp', treGrp, 'was not found in data. \n')
-  if(! conGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: conGrp', conGrp, 'was not found in data. \n')
+  if(! treGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: treGrp ', treGrp, ' was not found in data. \n')
+  if(! conGrp %in% unique(paral[[1]]$grp)) stop('\t \t \t \t Error legacyFingerprintMid: conGrp ', conGrp, ' was not found in data. \n')
   
   ## for each parameter, calculate
   # mean of controls
@@ -100,7 +100,6 @@ legacyFingerprintMid <- function(mid,
       # so say we observed 1, 1, 1, etc (95 times) and 2 > would give sd ~ 0.1
       if(unique(pa$parameter)=='sleepLatency' & sdCon==0) {
         sdCon <- 0.1
-      
         # write down error so I do not spend time looking for it if happens again
       } else if(sdCon==0) {
         cat('\t \t \t \t WARNING: standard deviation is 0, will cause Inf z-scores.\n')

@@ -167,7 +167,7 @@ ui <- fluidPage(
       
       ## cite us!
       p(''),
-      p(a(href="https://doi.org/10.7554/eLife.96839.1",
+      p(a(href="https://elifesciences.org/articles/96839",
           HTML("Cite us!"),
           target='_blank')),
       
@@ -224,7 +224,7 @@ ui <- fluidPage(
         #          h3(paste('Bottom', showNdrugs)),
         #          tableOutput('botdr')), # botdr is for bottom X drugs
         
-        tabPanel('Drug fingerprints ranked',
+        tabPanel('vs. Drugs',
                  p(''),
                  ## show details panel
                  checkboxInput('showdetails_Drugs', 'Show details', value=FALSE),
@@ -249,11 +249,37 @@ ui <- fluidPage(
                    p(strong(em('• Molecular weight')), 'compound\'s molecular weight in g/mol.'),
                    p(strong(em('• Shortlisted')), 'whether this compound was labelled as "shortlisted" by Rihel et al., 2010. A compound was shortlisted if it affected at least one behavioural parameter with a large effect size and/or affected the same parameter in the same direction across the two days/nights.'),
                    p(strong(em('• Structural cluster')), 'clusters of compounds with similar structures based on Tanimoto score, see Rihel et al., 2010.'),
-                   p('Data from', a(href='https://www.science.org/doi/abs/10.1126/science.1183090', HTML('Rihel et al., 2010. <em>Science</em>',)), ', reorganised by Kroll et al., 2023.')
+                   p('Data from', a(href='https://www.science.org/doi/abs/10.1126/science.1183090', HTML('Rihel et al., 2010. <em>Science</em>',)), ', reorganised by', a(href='https://elifesciences.org/articles/96839', HTML('Kroll et al., 2025. <em>eLife</em>')), '.')
                  ), # closes conditional panel
                  downloadButton('vdbr_dl', 'download'),
                  p(''),
                  DTOutput('vdbr_dis')),
+        
+        tabPanel('vs. Genes',
+                 p(''),
+                 ## show details panel
+                 checkboxInput('showdetails_Genes', 'Show details', value=FALSE),
+                 
+                 # conditional panel to show/hide details
+                 conditionalPanel(
+                   condition = 'input.showdetails_Genes == true',
+                   p('Too few examples? Contribute your data on', a(href='https://francoiskroll.shinyapps.io/zoltarcontribute/', HTML('ZOLTARcontribute')), '!'),
+                   p('>> Click on Cosine column to rank by increasing or decreasing.'),
+                   p('>> Click on a row to reveal every fingerprint of the same gene, together with the query fingerprint ("mean fgp").'),
+                   p(''),
+                   p(strong(em('• Cosine')), 'cosine similarity score (min. −1, max. +1) between the genetic fingerprint and the query fingerprint.'),
+                   p(strong(em('• Gene')), 'targeted gene.'),
+                   p(strong(em('• Mutation')), 'mutation tested.'),
+                   p(strong(em('• Genotype')), 'genotype of the larvae included in this fingerprint.'),
+                   p(strong(em('• Background')), 'genetic background.'),
+                   p(strong(em('• Submitter')), 'researcher who submitted this fingerprint.'),
+                   p(strong(em('• Reference')), 'if published, publication & figure reference.'),
+                   p(strong(em('• SubmissionDate')), 'when this fingerprint was submitted.'),
+                   p(strong(em('• Fingerprints IDs')), 'replicate fingerprints that were averaged together.'),
+                 ), # closes conditional panel
+                 downloadButton('vgbr_dl', 'download'),
+                 p(''),
+                 DTOutput('vgbr_dis')),
         
         tabPanel('Indications',
                  p(''),
@@ -265,6 +291,7 @@ ui <- fluidPage(
                  conditionalPanel(
                    condition = 'input.showdetails_Indications == true',
                    p('Enrichment of specific drug indications at the top and/or bottom of the ranked list of drugs. To calculate the enrichments, ZOLTAR uses a version of the "drug fingerprints ranked" list where each unique drug (PubChem CID) is present as a single average fingerprint. n = 3,677 drugs.'),
+                   p('(Genetic fingerprints are currently not used here.)'),
                    p(strong(em('• N drugs')), 'number of drugs annotated with this Indication.'),
                    p(strong(em('• Sum of cosines')), 'sum of the absolute cosines of the N fingerprints with this Indication.'),
                    p(strong(em('• Best possible sum of cosines')), 'sum of absolute cosines if the N fingerprints (N examples) were at the most extreme positions. For example, if N drugs = 4, it would represent the sum of cosines if the fingerprints with this Indication had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
@@ -294,6 +321,7 @@ ui <- fluidPage(
                  conditionalPanel(
                    condition = 'input.showdetails_Targets == true',
                    p('Enrichment of specific drug target proteins at the top and/or bottom of the ranked list of drugs. To calculate the enrichments, ZOLTAR uses a version of the "drug fingerprints ranked" list where each unique drug (PubChem CID) is present as a single average fingerprint. n = 3,677 drugs.'),
+                   p('(Genetic fingerprints are currently not used here.)'),
                    p(strong(em('• N drugs')), 'number of drugs annotated with this Target.'),
                    p(strong(em('• Sum of cosines')), 'sum of the absolute cosines of the N fingerprints with this Indication.'),
                    p(strong(em('• Best possible sum of cosines')), 'sum of absolute cosines if the N fingerprints (N examples) were at the most extreme positions. For example, if N drugs = 4, it would represent the sum of cosines if the fingerprints with this Target had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
@@ -323,6 +351,7 @@ ui <- fluidPage(
                  conditionalPanel(
                    condition = 'input.showdetails_KEGG == true',
                    p('Enrichment of specific KEGG pathways at the top and/or bottom of the ranked list of drugs. To calculate the enrichments, ZOLTAR uses a version of the "drug fingerprints ranked" list where each unique drug (PubChem CID) is present as a single average fingerprint. n = 3,677 drugs.'),
+                   p('(Genetic fingerprints are currently not used here.)'),
                    p(strong(em('• N drug–target')), 'number of drug–target interactions annotated with this KEGG pathway. This number can be larger than the number of drugs annotated with this KEGG pathway because it counts drug–target interactions. For example, drug AMPA (Pubchem CID 1221) has two target proteins: Glutamate receptor AMPA 1 (T33584) and 4 (T96235). Both targets affect the KEGG pathway "Glutamatergic synapse" (hsa04724), therefore the AMPA behavioural fingerprint (one unique drug) will add 2 (not 1) towards the total count for this KEGG pathway.'),
                    p(strong(em('• Sum of cosines')), 'sum of the absolute cosines of the N fingerprints with this KEGG pathway.'),
                    p(strong(em('• Best possible sum of cosines')), 'sum of absolute cosines if the N fingerprints (N examples) were at the most extreme positions. For example, if N drugs = 4, it would represent the sum of cosines if the fingerprints with this KEGG pathway had been at the following positions: top 1 (maximum positive cosine), top 2, before last, last (maximum negative cosine).'),
@@ -642,6 +671,49 @@ server <- function(input, output, session) {
                    },
                    content=function(file) {
                      vroom::vroom_write(vdbr, file, delim=',') # delim = ',' so writes CSV
+                     # Note, user downloads the original vdbr, not the display version
+                   }
+                 )
+                 
+                 ###############################################################
+                 ### ranked genes ###
+                 
+                 ## rank genes vs fingerprint
+                 withProgress(message='ranking genes', value=0.3, {
+                   vgbr <<- rankDrugDb(legacyFgp=fgp, # vgbr is for fingerprint VS gene DB, Ranked
+                                       dbPath='geneticDbSUM.csv',
+                                       metric='cosine')
+                   # also used when creating pop-up with ggBarcode, so keep as global variable (<<-)
+                   
+                   ## prepare the display version of the table
+                   vgbr_dis <- cleanGenesRanked(vgbr)
+                   
+                   incProgress(1.0)
+                 })
+                 
+                 ## display results
+                 
+                 ### solution to display top X drugs
+                 # output$topdr <- renderTable({ # topdr is for top X drugs
+                 #   return(vdbr_dis[1:showNdrugs,]) # this becomes 'topdr' in ui
+                 # })
+                 # 
+                 # # display bottom X drugs
+                 # output$botdr <- renderTable({ # botdr is for bottom X drugs
+                 #   return(vdbr_dis[(nrow(vdbr_dis)-(showNdrugs-1)):nrow(vdbr_dis),]) # this becomes 'topdr' in ui
+                 # })
+                 
+                 output$vgbr_dis <- renderDT(vgbr_dis,
+                                             selection=list(mode='single', target='row'),
+                                             rownames=FALSE)
+                 
+                 # set-up the download
+                 output$vgbr_dl <- downloadHandler( # download TTD targets
+                   filename=function() {
+                     'genesRanked.csv'
+                   },
+                   content=function(file) {
+                     vroom::vroom_write(vgbr, file, delim=',') # delim = ',' so writes CSV
                      # Note, we download the original vdbr, not the display version
                    }
                  )
@@ -947,6 +1019,64 @@ server <- function(input, output, session) {
     
     output$ggDfp <- renderPlot({
       return(ggDfp)
+    })
+    
+  })
+  
+  
+  ###############################################################
+  ### clickable genes ranked table to reveal fingerprint plot ###
+  observeEvent(input$vgbr_dis_rows_selected, {
+    req(input$vgbr_dis_rows_selected)
+    
+    # get the index of the selected row
+    clickrow <- input$vgbr_dis_rows_selected
+    
+    # what is the selected gene?
+    seleGene <- vgbr[clickrow, 'gene']
+    
+    # get already the "gene mutation genotype" from the database so we give them to onlyGrp
+    legGMG <- paste(vgbr[which(vgbr$gene==seleGene), 'gene'], vgbr[which(vgbr$gene==seleGene), 'mutation'], vgbr[which(vgbr$gene==seleGene), 'genotype'], sep=' ')
+    
+    # prepare the fingerprint plot
+    ggGfp <- ggDrugFgp(drugDb='geneticDbSUM.csv',
+                       dnames=seleGene,
+                       legacyFgp=fgp,
+                       onlyGrp=c('mean fgp', legGMG), # ***
+                       colours=NA,
+                       legendOrNo=TRUE,
+                       ynameOrNo=TRUE,
+                       ytextOrNo=TRUE,
+                       xtextOrNo=TRUE,
+                       paramNumOrNo=TRUE,
+                       nightBgOrNo=TRUE,
+                       ymin=-3,
+                       ymax=3,
+                       exportOrNo=FALSE, 
+                       exportPath=NA,
+                       width=NA,
+                       height=NA)
+    print(ggGfp)
+    # *** if user gave multiple experiments, this will only keep 'mean fgp' which is the mean fingerprint
+    # *** 
+    
+    modal <- modalDialog(
+      title = 'Fingerprint plot' ,
+      
+      # tell user about what is displayed
+      paste(length(which(vgbr$gene==seleGene)), 'fingerprint(s) for gene ', seleGene, '.\n'),
+      paste('Legend is Gene Mutation Genotype.\n'),
+      
+      plotOutput( 'ggGfp' ) ,
+      
+      easyClose=TRUE,
+      footer=modalButton('Close')
+    )
+    
+    showModal(modal)
+    
+    output$ggGfp <- renderPlot({
+      return(ggGfp)
     })
     
   })

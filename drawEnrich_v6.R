@@ -362,6 +362,12 @@ rankDrugDb <- function(legacyFgp,
                        dbPath,
                        metric) {
   
+  ### make sure legacyFgp has a column named zsco
+  # if not, assume it is 4th column
+  if(! 'zsco' %in% colnames(legacyFgp)) {
+    colnames(legacyFgp)[4] <- 'zsco'
+  }
+  
   ### import drugDb
   ddb <- read.csv(dbPath)
   
@@ -407,12 +413,18 @@ rankDrugDb <- function(legacyFgp,
   })
   
   # add columns
-  vdb <- ddb %>%
-    add_column(cor=dcor, .after='name') %>%
-    add_column(cos=dcos, .after='name')
-  # v for drugs VS fingerprint
-  
-  
+  # depends slightly if drug or genetic database
+  if('name' %in% colnames(ddb)) {
+    vdb <- ddb %>%
+      add_column(cor=dcor, .after='name') %>%
+      add_column(cos=dcos, .after='name')
+    # v for drugs VS fingerprint
+  } else if('gene' %in% colnames(ddb)) {
+    vdb <- ddb %>%
+      add_column(cor=dcor, .after='gene') %>%
+      add_column(cos=dcos, .after='gene')
+  }
+
   ### order drug db according to metric chosen by user
   if (metric=='correlation') {
     simCol <- which(colnames(vdb)=='cor')

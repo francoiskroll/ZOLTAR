@@ -213,30 +213,63 @@ ggDrugFgp <- function(drugDb,
   
   # keep only drugs we want to plot
   # use a loop so we can return some information to user
-  rows2take <- as.vector(unlist(sapply(dnames, function(dnm) {
-    
-    if(dnm=='first') {
-      rws <- 1
-    } else if(dnm=='last') {
-      rws <- nrow(ddb)
-    } else {
-      rws <- which(ddb$name == dnm)
-      if (length(rws)==0) {
-        cat('\t \t \t \t >>> No entry for', dnm, '\n')
-      } else if (length(rws)>0) {
-        cat('\t \t \t \t >>> n =', length(rws), 'entries for', dnm, '\n')
-      }
-    }
-    
-    return(rws)
-    
-  }
-  )))
+  # below depends slightly if we are working on drugDb or geneticDb
   
+  ## if drugDb
+  if('cid' %in% colnames(ddb)) {
+    rows2take <- as.vector(unlist(sapply(dnames, function(dnm) {
+      
+      if(dnm=='first') {
+        rws <- 1
+      } else if(dnm=='last') {
+        rws <- nrow(ddb)
+      } else {
+        rws <- which(ddb$name == dnm)
+        if (length(rws)==0) {
+          cat('\t \t \t \t >>> No entry for', dnm, '\n')
+        } else if (length(rws)>0) {
+          cat('\t \t \t \t >>> n =', length(rws), 'entries for', dnm, '\n')
+        }
+      }
+      
+      return(rws)
+      
+    }
+    )))
+    
+  ## if geneticDb
+  } else if('gene' %in% colnames(ddb)) {
+    rows2take <- as.vector(unlist(sapply(dnames, function(dnm) {
+      
+      if(dnm=='first') {
+        rws <- 1
+      } else if(dnm=='last') {
+        rws <- nrow(ddb)
+      } else {
+        rws <- which(ddb$gene == dnm)
+        if (length(rws)==0) {
+          cat('\t \t \t \t >>> No entry for', dnm, '\n')
+        } else if (length(rws)>0) {
+          cat('\t \t \t \t >>> n =', length(rws), 'entries for', dnm, '\n')
+        }
+      }
+      
+      return(rws)
+      
+    }
+    )))
+  }
   
   # take these rows from drugDb
   dbn <- as.data.frame(t(ddb[rows2take, zcol:zcoll]))
-  colnames(dbn) <- ddb[rows2take, 'name']
+  
+  if('cid' %in% colnames(ddb)) {
+    colnames(dbn) <- ddb[rows2take, 'name']
+  } else if('gene' %in% colnames(ddb)) {
+    # column names here will become legend in fingerprint plot
+    # we need to write gene & genotype
+    colnames(dbn) <- paste(ddb[rows2take, 'gene'], ddb[rows2take, 'mutation'], ddb[rows2take, 'genotype'], sep=' ')
+  }
   
   # will cause an issue if there are duplicate column names
   # which can happen if two fingerprints with the same drug name
@@ -274,6 +307,8 @@ ggDrugFgp <- function(drugDb,
   ### give cosines of fingerprints comparisons
   fsim <- as.data.frame(lsa::cosine(as.matrix(dbn[4:ncol(dbn)])))
   print(fsim)
+  
+  print(dbn)
   
   
   ### send to gglegacyFingerprint for plotting

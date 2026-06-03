@@ -53,6 +53,46 @@ cleanDrugsRanked <- function(vdbr) {
 }
 
 
+# function cleanGenesRanked(...) ------------------------------------------
+
+cleanGenesRanked <- function(vgbr) {
+  
+  ## remove day Z-scores
+  vgbr <- vgbr[ , - which(startsWith(colnames(vgbr), 'day')) ]
+  ## remove night Z-scores
+  vgbr <- vgbr[ , - which(startsWith(colnames(vgbr), 'night')) ]
+  
+  ## remove rank column
+  vgbr$rank <- NULL
+  
+  ## remove rank0 column
+  vgbr$rank0 <- NULL
+  
+  ## remove cor column
+  vgbr$cor <- NULL
+  
+  ## round cos column
+  vgbr$cos <- round(vgbr$cos, digits=2)
+  
+  ## remove abscos column
+  vgbr$abscos <- NULL
+  
+  ## v6: not using rankeq anymore, so removing column
+  # before was: vdbr$rankeq <- round(vdbr$rankeq, digits=2)
+  vgbr$rankeq <- NULL
+  
+  ## re-arrange columns
+  vgbr <- vgbr[, c('cos', 'ranks', 'gene', 'mutation', 'genotype', 'background', 'submitter', 'reference', 'submissionDate', 'ids')]
+  
+  ## rename columns
+  colnames(vgbr) <- c('Cosine', 'Rank from 0', 'Gene', 'Mutation', 'Genotype', 'Background',
+                      'Submitter', 'Reference', 'SubmissionDate', 'Fingerprint IDs')
+  
+  ## return
+  return(vgbr)
+}
+
+
 # function cleanIndications(...) ------------------------------------------
 
 cleanIndications <- function(ind) {
