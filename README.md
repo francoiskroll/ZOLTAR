@@ -134,7 +134,9 @@ In the TTD datasets, only compounds with a TTD ID are listed so the total count 
 
 `geneticDbSUM.csv`, similar to `drugDbSUM.csv` but for genetic fingerprints calculated from data collected through [ZOLTARcontribute](https://francoiskroll.shinyapps.io/zoltarcontribute/). It is called `SUM` because each fingerprint is the mean fingerprint of the replicate experiments submitted by the researcher. The fingerprints that were averaged are listed in column `ids`. There is one fingerprint per gene per genotype per ZOLTARcontribute submission.
 
-> Genetic fingerprint database was last updated 03/03/2026.
+> Genetic fingerprint database was last updated 07/06/2026.  
+Previous updates:
+* 03/06/2026
 
 ## Version history
 
